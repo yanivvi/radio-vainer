@@ -15,6 +15,16 @@ const micMeter = document.querySelector('#mic-meter')
 const musicMeter = document.querySelector('#music-meter')
 const titleInput = document.querySelector('#title')
 const messageInput = document.querySelector('#message')
+const guestInviteBtn = document.querySelector('#guest-invite')
+const guestShare = document.querySelector('#guest-share')
+const guestUrlInput = document.querySelector('#guest-url')
+const guestCopyBtn = document.querySelector('#guest-copy')
+const guestNote = document.querySelector('#guest-note')
+const guestOn = document.querySelector('#guest-on')
+const guestWho = document.querySelector('#guest-who')
+const guestMeter = document.querySelector('#guest-meter')
+const guestGainInput = document.querySelector('#guest-gain')
+const guestDropBtn = document.querySelector('#guest-drop')
 const statusEl = document.querySelector('#status')
 const listenersEl = document.querySelector('#listeners')
 
@@ -31,6 +41,15 @@ let musicGain
 let musicAnalyser
 let room
 let statusAction
+let callerAction
+let callCode = ''
+let guestPeerId = null
+let guestStream = null
+let heldCaller = null
+let guestSource = null
+let guestGain = null
+let guestAnalyser = null
+let monitor = null
 let pulse
 let wakeLock
 let raf = 0
@@ -82,6 +101,14 @@ goLiveBtn.addEventListener('click', () => {
   else startBroadcast()
 })
 
+guestInviteBtn.addEventListener('click', createCallLink)
+guestCopyBtn.addEventListener('click', copyCallLink)
+guestDropBtn.addEventListener('click', () => releaseGuest(true))
+guestGainInput.addEventListener('input', () => {
+  guestGainInput.setAttribute('aria-valuetext', guestGainInput.value)
+  writeGuestGain()
+})
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && room) keepAwake()
 })
@@ -97,6 +124,9 @@ function ensureGraph() {
   clockSource = audioCtx.createConstantSource()
   clockSource.offset.value = 0
   clockSource.connect(destination)
+  // The caller hears this mix, which never includes their own voice.
+  monitor = audioCtx.createMediaStreamDestination()
+  clockSource.connect(monitor)
   clockSource.start()
   loopMeters()
 }
@@ -134,6 +164,7 @@ async function startMic() {
   micAnalyser.fftSize = 1024
   micSource.connect(micGain)
   micGain.connect(destination)
+  micGain.connect(monitor)
   micGain.connect(micAnalyser)
   micStream.getAudioTracks().forEach((track) => {
     track.addEventListener('ended', stopMic)
@@ -196,6 +227,7 @@ async function startMusic() {
   musicAnalyser.fftSize = 1024
   musicSource.connect(musicGain)
   musicGain.connect(destination)
+  musicGain.connect(monitor)
   musicGain.connect(musicAnalyser)
   musicBtn.textContent = 'Stop music capture'
   musicBtn.setAttribute('aria-pressed', 'true')
@@ -257,15 +289,32 @@ async function startBroadcast() {
       }
     })
     statusAction = room.makeAction('status')
+    callerAction = room.makeAction('caller')
+    callerAction.onMessage = (data, { peerId }) => {
+      if (!data) return
+      if (data.kind === 'hello') acceptCaller(peerId, data)
+      else if (data.kind === 'bye' && peerId === guestPeerId) releaseGuest(false)
+    }
     const output = destination.stream
 
     room.onPeerJoin = (peerId) => {
-      room.addStream(output, { target: peerId, metadata: { role: 'station' } })
+      if (peerId === guestPeerId) sendCallerReturn(peerId)
+      else room.addStream(output, { target: peerId, metadata: { role: 'station' } })
       publish(peerId)
     }
     room.onPeerLeave = (peerId) => {
+      if (peerId === guestPeerId) releaseGuest(false)
       studioChat.peerLeft(peerId)
       publish()
+    }
+    room.onPeerStream = (stream, peerId, metadata) => {
+      if (metadata?.role !== 'caller' || metadata.call !== callCode) return
+      if (guestPeerId && peerId !== guestPeerId) return
+      if (guestPeerId !== peerId) {
+        heldCaller = { stream, peerId }
+        return
+      }
+      mixCaller(stream)
     }
     room.addStream(output, { metadata: { role: 'station' } })
     studioChat.attach(room)
@@ -277,6 +326,9 @@ async function startBroadcast() {
     pulse = window.setInterval(() => publish(), 3000)
     keepAwake()
     document.title = '● On air · Radio Vainer'
+    if (callCode && !guestPeerId) {
+      guestNote.textContent = 'Send this link to one caller. A new link replaces it.'
+    }
     if (!micStream && !displayStream) {
       setStatus('You are live. Turn on the microphone or capture music so there is something to hear.')
     }
@@ -294,9 +346,11 @@ async function stopBroadcast() {
     // The room may already be empty.
   }
   studioChat.detach()
+  releaseGuest(false)
   room?.leave()
   room = null
   statusAction = null
+  callerAction = null
   wakeLock?.release?.().catch(() => {})
   wakeLock = null
   goLiveBtn.textContent = 'Go live'
@@ -327,8 +381,8 @@ function publish(target) {
 
 function peerCount() {
   const peers = room.getPeers()
-  if (peers instanceof Map) return peers.size
-  return Object.keys(peers).length
+  const count = peers instanceof Map ? peers.size : Object.keys(peers).length
+  return guestPeerId && count > 0 ? count - 1 : count
 }
 
 function setOnAir(on) {
@@ -452,11 +506,13 @@ async function keepAwake() {
 function loopMeters() {
   const micCtx = micMeter.getContext('2d')
   const musicCtx = musicMeter.getContext('2d')
+  const guestCtx = guestMeter.getContext('2d')
   const sample = new Uint8Array(1024)
 
   const frame = () => {
     paintMeter(micCtx, micMeter, micAnalyser, sample)
     paintMeter(musicCtx, musicMeter, musicAnalyser, sample)
+    paintMeter(guestCtx, guestMeter, guestAnalyser, sample)
     raf = requestAnimationFrame(frame)
   }
   frame()
@@ -492,6 +548,119 @@ function paintMeter(ctx, canvas, analyserNode, sample) {
   ctx.fillRect(0, height / 2 - 2, Math.max(0, width * level), 4)
 }
 
+function createCallLink() {
+  if (guestPeerId) releaseGuest(true)
+  callCode = crypto.randomUUID().replaceAll('-', '')
+  const url = new URL('guest.html', location.href)
+  url.searchParams.set('call', callCode)
+  guestUrlInput.value = url.href
+  guestShare.hidden = false
+  guestCopyBtn.textContent = 'Copy'
+  guestNote.textContent = room
+    ? 'Send this link to one caller. A new link replaces it.'
+    : 'Send this link to one caller. They connect once you go live.'
+}
+
+async function copyCallLink() {
+  const link = guestUrlInput.value
+  if (!link) return
+  try {
+    await navigator.clipboard.writeText(link)
+    guestCopyBtn.textContent = 'Copied'
+  } catch {
+    guestUrlInput.focus()
+    guestUrlInput.select()
+    guestCopyBtn.textContent = 'Select the link'
+  }
+  window.setTimeout(() => {
+    if (guestCopyBtn.textContent !== 'Copy') guestCopyBtn.textContent = 'Copy'
+  }, 1600)
+}
+
+function acceptCaller(peerId, data) {
+  if (!callCode || data.call !== callCode) {
+    callerAction?.send({ kind: 'deny' }, { target: peerId }).catch(() => {})
+    return
+  }
+  if (guestPeerId && guestPeerId !== peerId) releaseGuest(true)
+  guestPeerId = peerId
+  const name = String(data.name || 'Guest').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 24) || 'Guest'
+  guestWho.textContent = name
+  guestOn.hidden = false
+  guestNote.textContent = `${name} is in the mix.`
+  sendCallerReturn(peerId)
+  callerAction?.send({ kind: 'live' }, { target: peerId }).catch(() => {})
+  if (heldCaller?.peerId === peerId) {
+    const stream = heldCaller.stream
+    heldCaller = null
+    mixCaller(stream)
+  }
+  publish()
+}
+
+function sendCallerReturn(peerId) {
+  if (!room || !monitor || !destination) return
+  try {
+    room.removeStream(destination.stream, { target: peerId })
+  } catch {
+    // The station mix may not be on this caller yet.
+  }
+  room.addStream(monitor.stream, { target: peerId, metadata: { role: 'return' } })
+}
+
+function mixCaller(stream) {
+  if (!audioCtx || guestStream === stream) return
+  unmixCaller()
+  guestStream = stream
+  guestSource = audioCtx.createMediaStreamSource(stream)
+  guestGain = audioCtx.createGain()
+  writeGuestGain()
+  guestAnalyser = audioCtx.createAnalyser()
+  guestAnalyser.fftSize = 1024
+  guestSource.connect(guestGain)
+  guestGain.connect(destination)
+  guestGain.connect(guestAnalyser)
+  stream.getAudioTracks().forEach((track) => {
+    track.addEventListener('ended', () => {
+      if (guestStream === stream) releaseGuest(false)
+    })
+  })
+}
+
+function writeGuestGain() {
+  if (!guestGain || !audioCtx) return
+  const now = audioCtx.currentTime
+  guestGain.gain.cancelScheduledValues(now)
+  guestGain.gain.setValueAtTime(Number(guestGainInput.value) / 100, now)
+}
+
+function unmixCaller() {
+  guestSource?.disconnect()
+  guestGain?.disconnect()
+  guestSource = null
+  guestGain = null
+  guestAnalyser = null
+  guestStream = null
+}
+
+function releaseGuest(tellCaller) {
+  const peerId = guestPeerId
+  unmixCaller()
+  guestPeerId = null
+  heldCaller = null
+  guestOn.hidden = true
+  guestWho.textContent = ''
+  if (callCode) {
+    guestNote.textContent = room
+      ? 'Send this link to one caller. A new link replaces it.'
+      : 'Send this link to one caller. They connect once you go live.'
+  }
+  if (tellCaller && peerId) {
+    callerAction?.send({ kind: 'drop' }, { target: peerId }).catch(() => {})
+  }
+  if (room && statusAction) publish()
+}
+
 function release() {
   window.clearInterval(pulse)
   cancelAnimationFrame(raf)
@@ -499,6 +668,7 @@ function release() {
   musicFade.hold(Number(musicGainInput.value))
   micStream?.getTracks().forEach((track) => track.stop())
   displayStream?.getTracks().forEach((track) => track.stop())
+  releaseGuest(false)
   studioChat.detach()
   room?.leave()
   audioCtx?.close()

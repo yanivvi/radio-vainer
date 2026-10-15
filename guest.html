@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guest caller · Radio Vainer</title>
+  <meta name="theme-color" content="#f6efe4">
+  <link rel="icon" href="favicon.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/radio.css">
+</head>
+<body>
+  <main class="chassis">
+    <header class="mast">
+      <a class="brand link" href="./">Radio Vainer</a>
+      <span id="air" class="air off">Off air</span>
+    </header>
+
+    <img class="logo" src="logo.jpg" alt="">
+    <h1>Guest caller</h1>
+    <p class="tag">You talk with the studio. Listeners hear you through the station.</p>
+
+    <label class="title-field">
+      <span>Your name</span>
+      <input id="guest-name" type="text" maxlength="24" value="Guest" autocomplete="nickname">
+    </label>
+
+    <button id="call" class="tune" type="button">Call in</button>
+    <audio id="player" playsinline></audio>
+    <p id="note" class="note" role="status"></p>
+  </main>
+  <script type="module" src="js/guest.js"></script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import { suggestName } from './names.js'
+import { cleanPicture, pictureElement, pictures, suggestPicture } from './pictures.js'
 
 const MAX_LOG = 40
 const STUDIO_NAME = 'Studio'
@@ -10,8 +11,10 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
   const gate = document.querySelector('#chat-gate')
   const live = document.querySelector('#chat-live')
   const nameInput = document.querySelector('#chat-name')
+  const pictureRow = document.querySelector('#chat-pictures')
   const suggestBtn = document.querySelector('#chat-suggest')
   const you = document.querySelector('#chat-you')
+  const youPicture = document.querySelector('#chat-you-picture')
   const empty = document.querySelector('#chat-empty')
   const log = document.querySelector('#chat-log')
   const scroll = document.querySelector('#chat-scroll')
@@ -25,11 +28,29 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
   const seen = new Set()
   const dropped = new Set()
   let name = ''
+  let picture = suggestPicture()
   let started = false
   let announced = false
   let booted = false
 
   nameInput.value = suggestName()
+  const pictureChoices = new Map()
+  for (const item of pictures) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'picture-choice'
+    button.setAttribute('aria-label', item.label)
+    button.setAttribute('aria-pressed', item.id === picture ? 'true' : 'false')
+    button.append(pictureElement(item.id))
+    button.addEventListener('click', () => {
+      picture = item.id
+      for (const [id, choice] of pictureChoices) {
+        choice.setAttribute('aria-pressed', id === picture ? 'true' : 'false')
+      }
+    })
+    pictureChoices.set(item.id, button)
+    pictureRow.append(button)
+  }
 
   suggestBtn.addEventListener('click', () => {
     nameInput.value = suggestName()
@@ -48,11 +69,13 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
       return
     }
     name = chosen
+    picture = cleanPicture(picture)
     started = true
     announced = false
     gate.hidden = true
     live.hidden = false
     you.textContent = name
+    youPicture.replaceChildren(pictureElement(picture))
     setNote(getHostId() ? '' : 'Waiting for the studio.')
     paintAll()
     sendJoin()
@@ -68,9 +91,9 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
       setNote('The studio is not here yet.')
       return
     }
-    const message = { id: makeId(), name, text, admin: false }
+    const message = { id: makeId(), name, text, admin: false, picture }
     addMessage(message)
-    action.send({ kind: 'say', id: message.id, name, text }).catch(() => {
+    action.send({ kind: 'say', id: message.id, name, text, picture }).catch(() => {
       setNote('Could not send. Try again.')
     })
     textInput.value = ''
@@ -111,6 +134,7 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
       gate.hidden = false
       nameInput.disabled = true
       suggestBtn.hidden = true
+      setPicturesDisabled(true)
       gate.querySelector('button[type="submit"]').hidden = true
       setNote('The studio removed you from the chat.')
     }
@@ -128,6 +152,7 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
       dropped.clear()
       nameInput.disabled = false
       suggestBtn.hidden = false
+      setPicturesDisabled(false)
       gate.querySelector('button[type="submit"]').hidden = false
       clearMessages()
       setNote(started ? 'The studio left. The chat returns when it is back.' : '')
@@ -137,7 +162,7 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
   function sendJoin() {
     if (!started || booted || !getHostId()) return
     announced = true
-    action.send({ kind: 'join', name }).catch(() => {
+    action.send({ kind: 'join', name, picture }).catch(() => {
       announced = false
     })
   }
@@ -216,6 +241,10 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
   function setNote(message) {
     note.textContent = message
   }
+
+  function setPicturesDisabled(disabled) {
+    for (const choice of pictureChoices.values()) choice.disabled = disabled
+  }
 }
 
 export function mountStudioChat() {
@@ -239,7 +268,7 @@ export function mountStudioChat() {
     if (!action) return
     const text = cleanText(textInput.value)
     if (!text) return
-    const message = { id: makeId(), name: STUDIO_NAME, text, admin: true }
+    const message = { id: makeId(), name: STUDIO_NAME, text, admin: true, picture: 'studio' }
     remember(message)
     relay(message)
     textInput.value = ''
@@ -255,7 +284,7 @@ export function mountStudioChat() {
       action.onMessage = (data, { peerId }) => {
         if (!data || typeof data !== 'object') return
         if (data.kind === 'join') {
-          if (welcome(peerId, data.name)) sendLog(peerId)
+          if (welcome(peerId, data.name, data.picture)) sendLog(peerId)
           return
         }
         if (data.kind === 'leave') {
@@ -286,14 +315,14 @@ export function mountStudioChat() {
     }
   }
 
-  function welcome(peerId, rawName) {
+  function welcome(peerId, rawName, rawPicture) {
     if (booted.has(peerId)) {
       action.send({ kind: 'boot' }, { target: peerId }).catch(() => {})
       return false
     }
     const name = cleanName(rawName)
     if (!name) return false
-    people.set(peerId, name)
+    people.set(peerId, { name, picture: cleanPicture(rawPicture) })
     renderPeople()
     return true
   }
@@ -304,10 +333,11 @@ export function mountStudioChat() {
     const id = cleanId(data.id)
     if (!name || !text || !id) return
     const isNew = !people.has(peerId)
-    if (!welcome(peerId, name)) return
+    const picture = cleanPicture(data.picture)
+    if (!welcome(peerId, name, picture)) return
     if (seen.has(id)) return
-    remember({ id, name, text, admin: false })
-    relay({ id, name, text, admin: false })
+    remember({ id, name, text, admin: false, picture })
+    relay({ id, name, text, admin: false, picture })
     if (isNew) sendLog(peerId)
   }
 
@@ -330,14 +360,15 @@ export function mountStudioChat() {
       id: message.id,
       name: message.name,
       text: message.text,
-      admin: message.admin
+      admin: message.admin,
+      picture: message.picture
     }).catch(() => {})
   }
 
   function sendLog(peerId) {
     action?.send({
       kind: 'log',
-      messages: messages.map(({ id, name, text, admin }) => ({ id, name, text, admin }))
+      messages: messages.map(({ id, name, text, admin, picture }) => ({ id, name, text, admin, picture }))
     }, { target: peerId }).catch(() => {})
   }
 
@@ -370,15 +401,22 @@ export function mountStudioChat() {
     for (const [peerId, person] of people) {
       const row = document.createElement('div')
       row.className = 'chat-person'
+      const who = document.createElement('span')
+      who.className = 'chat-person-id'
+      const face = document.createElement('span')
+      face.className = 'chat-picture'
+      face.append(pictureElement(person.picture))
       const label = document.createElement('span')
-      label.textContent = person
+      label.className = 'chat-person-label'
+      label.textContent = person.name
+      who.append(face, label)
       const remove = document.createElement('button')
       remove.type = 'button'
       remove.className = 'chat-mini'
       remove.textContent = 'Remove'
-      remove.setAttribute('aria-label', `Remove ${person} from the chat`)
+      remove.setAttribute('aria-label', `Remove ${person.name} from the chat`)
       remove.addEventListener('click', () => boot(peerId))
-      row.append(label, remove)
+      row.append(who, remove)
       peopleEl.append(row)
     }
   }
@@ -391,7 +429,10 @@ function renderMessage(message, onRemove) {
 
   const who = document.createElement('span')
   who.className = 'chat-name'
-  who.textContent = message.admin ? STUDIO_NAME : message.name
+  const face = document.createElement('span')
+  face.className = 'chat-picture'
+  face.append(pictureElement(message.admin ? 'studio' : message.picture))
+  who.append(face, document.createTextNode(message.admin ? STUDIO_NAME : message.name))
   if (message.admin) {
     const badge = document.createElement('span')
     badge.className = 'chat-badge'
@@ -425,7 +466,7 @@ function normalize(raw) {
   const admin = Boolean(raw.admin)
   const name = admin ? STUDIO_NAME : cleanName(raw.name)
   if (!id || !text || !name) return null
-  return { id, name, text, admin }
+  return { id, name, text, admin, picture: admin ? 'studio' : cleanPicture(raw.picture) }
 }
 
 function cleanName(value) {
