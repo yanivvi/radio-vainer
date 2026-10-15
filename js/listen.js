@@ -10,19 +10,24 @@ const note = document.querySelector('#note')
 const canvas = document.querySelector('#scope')
 
 const sources = new WeakMap()
-const player = new Audio()
+const player = document.querySelector('#player')
 player.playsInline = true
-player.muted = true
+player.volume = 0.9
 
 let audioCtx
 let analyser
-let volumeGain
 let sourceNode
 let pendingStream
 let playingStream
 let hostId = null
 let armed = false
+let ignorePause = false
 let raf = 0
+
+if ('mediaSession' in navigator) {
+  navigator.mediaSession.setActionHandler('play', () => { startListening() })
+  navigator.mediaSession.setActionHandler('pause', () => { stopListening() })
+}
 
 const room = joinRoom(roomOptions({ passive: true }), roomId, {
   onJoinError() {
@@ -86,21 +91,26 @@ room.onPeerStream = (stream, peerId, metadata) => {
   chat.hostHere()
 }
 
-listenBtn.addEventListener('click', async () => {
-  if (armed && audioCtx?.state === 'running') {
-    await audioCtx.suspend()
-    armed = false
-    listenBtn.textContent = 'Listen'
-    stopDraw()
-    if (air.classList.contains('on')) note.textContent = 'Press listen.'
-    return
-  }
+listenBtn.addEventListener('click', () => {
+  if (armed) stopListening()
+  else startListening()
+})
+
+player.addEventListener('pause', () => {
+  if (ignorePause || !armed) return
+  stopListening()
+})
+
+volume.addEventListener('input', () => {
+  player.volume = Number(volume.value)
+})
+
+async function startListening() {
   armed = true
   listenBtn.textContent = 'Pause'
-  ensureAudio()
-  await audioCtx.resume()
   if (!pendingStream) {
     note.textContent = 'Tuning in. Sound starts when the studio is live.'
+    publishSession('paused')
     return
   }
   try {
@@ -108,40 +118,50 @@ listenBtn.addEventListener('click', async () => {
   } catch {
     askToListen()
   }
-})
+}
 
-volume.addEventListener('input', () => {
-  if (volumeGain) volumeGain.gain.value = Number(volume.value)
-})
+function stopListening() {
+  ignorePause = true
+  player.pause()
+  ignorePause = false
+  armed = false
+  listenBtn.textContent = 'Listen'
+  stopDraw()
+  audioCtx?.suspend()
+  publishSession('paused')
+  if (air.classList.contains('on')) note.textContent = 'Press listen.'
+}
 
 function ensureAudio() {
   if (audioCtx) return audioCtx
   audioCtx = new AudioContext()
   analyser = audioCtx.createAnalyser()
   analyser.fftSize = 256
-  volumeGain = audioCtx.createGain()
-  volumeGain.gain.value = Number(volume.value)
-  analyser.connect(volumeGain)
-  volumeGain.connect(audioCtx.destination)
+  // The meter must not reach the speakers. The audio element is the only
+  // output, so the phone keeps this playing when the screen locks.
+  const silent = audioCtx.createGain()
+  silent.gain.value = 0
+  analyser.connect(silent)
+  silent.connect(audioCtx.destination)
   return audioCtx
 }
 
 async function playStream(stream) {
   pendingStream = stream
-  // Chrome only delivers remote WebRTC audio to the speakers after this
-  // element is playing. The element stays muted so it is not heard twice.
-  player.muted = true
+  player.muted = false
+  player.volume = Number(volume.value)
   if (player.srcObject !== stream) player.srcObject = stream
   await player.play()
-  ensureAudio()
-  await audioCtx.resume()
+  publishSession('playing')
   try {
+    ensureAudio()
+    await audioCtx.resume()
     attachMeter(stream)
+    if (analyser) draw()
   } catch {
     // The station still plays if the meter cannot attach.
   }
   note.textContent = ''
-  if (analyser) draw()
 }
 
 function attachMeter(stream) {
@@ -159,9 +179,26 @@ function attachMeter(stream) {
   playingStream = stream
 }
 
+function publishSession(state) {
+  if (!('mediaSession' in navigator)) return
+  const title = now.textContent
+  const named = title && title !== 'Waiting for the studio' && title !== 'Off air'
+  navigator.mediaSession.playbackState = state
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: named ? title : 'Radio Vainer',
+    artist: 'Radio Vainer',
+    artwork: [{
+      src: new URL('favicon.png', location.href).href,
+      sizes: '192x192',
+      type: 'image/png'
+    }]
+  })
+}
+
 function askToListen() {
   armed = false
   listenBtn.textContent = 'Listen'
+  publishSession('paused')
   note.textContent = 'Press listen to hear the station.'
 }
 
@@ -174,6 +211,7 @@ function showLive(data) {
   count.textContent = n === 0 ? 'No listeners yet' : n === 1 ? '1 listening' : `${n} listening`
   if (!armed) note.textContent = 'Press listen.'
   document.title = '● Radio Vainer'
+  if (!player.paused) publishSession('playing')
   chat.hostHere()
 }
 
@@ -181,8 +219,11 @@ function goOffAir() {
   hostId = null
   pendingStream = null
   playingStream = null
+  ignorePause = true
   player.pause()
+  ignorePause = false
   player.srcObject = null
+  publishSession('none')
   audioCtx?.suspend()
   if (sourceNode) {
     sourceNode.disconnect()
