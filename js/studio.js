@@ -14,6 +14,7 @@ const musicFadeOutBtn = document.querySelector('#music-fade-out')
 const micMeter = document.querySelector('#mic-meter')
 const musicMeter = document.querySelector('#music-meter')
 const titleInput = document.querySelector('#title')
+const messageInput = document.querySelector('#message')
 const statusEl = document.querySelector('#status')
 const listenersEl = document.querySelector('#listeners')
 
@@ -69,6 +70,10 @@ musicFadeInBtn.addEventListener('click', () => musicFade.fadeIn())
 musicFadeOutBtn.addEventListener('click', () => musicFade.fadeOut())
 
 titleInput.addEventListener('input', () => {
+  if (room) publish()
+})
+
+messageInput.addEventListener('input', () => {
   if (room) publish()
 })
 
@@ -284,7 +289,7 @@ async function stopBroadcast() {
   window.clearInterval(pulse)
   pulse = null
   try {
-    await statusAction?.send({ role: 'host', live: false, title: '', listeners: 0 })
+    await statusAction?.send({ role: 'host', live: false, title: '', message: '', listeners: 0 })
   } catch {
     // The room may already be empty.
   }
@@ -308,6 +313,7 @@ function publish(target) {
     role: 'host',
     live: true,
     title: titleInput.value.trim(),
+    message: messageInput.value.trim().slice(0, 140),
     listeners: peerCount()
   }
   const options = target ? { target } : undefined

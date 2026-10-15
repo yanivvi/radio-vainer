@@ -3,6 +3,7 @@ import { joinRoom, roomId, roomOptions } from './config.js'
 
 const air = document.querySelector('#air')
 const now = document.querySelector('#now')
+const hostMessage = document.querySelector('#host-message')
 const listenBtn = document.querySelector('#listen')
 const volume = document.querySelector('#volume')
 const count = document.querySelector('#count')
@@ -207,6 +208,9 @@ function showLive(data) {
   air.classList.add('on')
   air.classList.remove('off')
   now.textContent = data.title?.trim() || 'Live from the studio'
+  const message = String(data.message || '').trim().slice(0, 140)
+  hostMessage.textContent = message
+  hostMessage.hidden = message.length === 0
   const n = Number(data.listeners) || 0
   count.textContent = n === 0 ? 'No listeners yet' : n === 1 ? '1 listening' : `${n} listening`
   if (!armed) note.textContent = 'Press listen.'
@@ -235,6 +239,8 @@ function goOffAir() {
   air.classList.add('off')
   air.classList.remove('on')
   now.textContent = 'Off air'
+  hostMessage.textContent = ''
+  hostMessage.hidden = true
   count.textContent = ''
   if (armed) note.textContent = 'The studio stopped. This will play again when it returns.'
   document.title = 'Radio Vainer'

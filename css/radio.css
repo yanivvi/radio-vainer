@@ -135,6 +135,17 @@ h1 {
   font-weight: 800;
 }
 
+.host-message {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.host-message[hidden] {
+  display: none;
+}
+
 .scope {
   display: block;
   width: 100%;
