@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Radio Vainer Now Playing",
+  "version": "1.0.0",
+  "description": "Fills the studio Now playing line from the tab that is playing audio.",
+  "permissions": ["tabs"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://yanivvi.github.io/radio-vainer/studio.html",
+        "http://127.0.0.1/studio.html",
+        "http://localhost/studio.html"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}
