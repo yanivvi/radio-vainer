@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Studio · Radio Vainer</title>
+  <meta name="theme-color" content="#12100e">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/radio.css">
+</head>
+<body>
+  <main class="booth">
+    <header class="mast">
+      <a class="brand link" href="./">Radio Vainer</a>
+      <span id="air" class="air off">Off air</span>
+    </header>
+
+    <h1>Studio</h1>
+    <p class="tag">Mix the microphone with music playing on this computer, then go live. Leave this tab open.</p>
+
+    <div class="channels">
+      <section class="channel" aria-labelledby="mic-label">
+        <h2 id="mic-label">Microphone</h2>
+        <button id="mic" class="channel-btn" type="button" aria-pressed="false">Turn on microphone</button>
+        <canvas id="mic-meter" class="meter" aria-hidden="true"></canvas>
+        <label class="fader">
+          <span>Level</span>
+          <input id="mic-gain" type="range" min="0" max="150" value="100">
+        </label>
+      </section>
+
+      <section class="channel" aria-labelledby="music-label">
+        <h2 id="music-label">Music on this computer</h2>
+        <p class="hint">In the share dialog, choose Entire Screen and turn on Share system audio. A browser tab works too if the music is playing in that tab. Only the sound is sent.</p>
+        <button id="music" class="channel-btn" type="button" aria-pressed="false">Capture music</button>
+        <canvas id="music-meter" class="meter" aria-hidden="true"></canvas>
+        <label class="fader">
+          <span>Level</span>
+          <input id="music-gain" type="range" min="0" max="150" value="80">
+        </label>
+      </section>
+    </div>
+
+    <label class="title-field">
+      <span>Now playing</span>
+      <input id="title" type="text" maxlength="80" placeholder="Song, show, or leave blank" autocomplete="off">
+    </label>
+
+    <button id="go-live" class="tune" type="button" aria-pressed="false">Go live</button>
+    <p id="listeners" class="listeners"></p>
+    <p id="status" class="note" role="status"></p>
+    <a class="quiet in-booth" href="./">Open the radio</a>
+  </main>
+  <script type="module" src="js/studio.js"></script>
+</body>
+</html>

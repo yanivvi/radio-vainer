@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Radio Vainer</title>
+  <meta name="description" content="Live from the desk. Radio Vainer.">
+  <meta name="theme-color" content="#12100e">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/radio.css">
+</head>
+<body>
+  <main class="chassis">
+    <header class="mast">
+      <span class="brand">RV</span>
+      <span class="freq">99.1</span>
+      <span id="air" class="air off">Off air</span>
+    </header>
+
+    <h1>Radio Vainer</h1>
+    <p class="tag">A one-person station.</p>
+    <p id="now" class="now">Waiting for the studio</p>
+    <canvas id="scope" class="scope" aria-hidden="true"></canvas>
+
+    <button id="listen" class="tune" type="button">Listen</button>
+
+    <label class="fader">
+      <span>Volume</span>
+      <input id="volume" type="range" min="0" max="1" step="0.01" value="0.9">
+    </label>
+
+    <p id="count" class="listeners"></p>
+    <p id="note" class="note" role="status">Press listen. Sound starts when the studio is live.</p>
+  </main>
+  <a class="quiet" href="studio.html">Studio</a>
+  <script type="module" src="js/listen.js"></script>
+</body>
+</html>
