@@ -5,7 +5,7 @@ const MAX_LOG = 40
 const STUDIO_NAME = 'Studio'
 
 // Listeners join passively, so they only connect to the studio.
-// The studio relays every message and is the only peer who can moderate.
+// The studio relays every message.
 
 export function mountListenerChat({ room, getHostId, claimHost }) {
   const gate = document.querySelector('#chat-gate')
@@ -31,7 +31,6 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
   let picture = suggestPicture()
   let started = false
   let announced = false
-  let booted = false
 
   nameInput.value = suggestName()
   const pictureChoices = new Map()
@@ -59,7 +58,6 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
 
   gate.addEventListener('submit', (event) => {
     event.preventDefault()
-    if (booted) return
     const chosen = cleanName(nameInput.value)
     if (!chosen) {
       setNote(nameInput.value.trim().toLowerCase() === 'studio'
@@ -84,16 +82,16 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
 
   form.addEventListener('submit', (event) => {
     event.preventDefault()
-    if (!started || booted) return
+    if (!started) return
     const text = cleanText(textInput.value)
     if (!text) return
     if (!getHostId()) {
       setNote('The studio is not here yet.')
       return
     }
-    const message = { id: makeId(), name, text, admin: false, picture }
+    const message = { id: makeId(), name, text, admin: false, picture, at: Date.now() }
     addMessage(message)
-    action.send({ kind: 'say', id: message.id, name, text, picture }).catch(() => {
+    action.send({ kind: 'say', id: message.id, name, text, picture, at: message.at }).catch(() => {
       setNote('Could not send. Try again.')
     })
     textInput.value = ''
@@ -121,46 +119,25 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
       addMessage(data)
       return
     }
-    if (data.kind === 'drop') {
-      forget(cleanId(data.id))
-      return
-    }
-    if (data.kind === 'boot') {
-      booted = true
-      started = false
-      announced = false
-      clearMessages()
-      live.hidden = true
-      gate.hidden = false
-      nameInput.disabled = true
-      suggestBtn.hidden = true
-      setPicturesDisabled(true)
-      gate.querySelector('button[type="submit"]').hidden = true
-      setNote('The studio removed you from the chat.')
-    }
+    if (data.kind === 'drop') forget(cleanId(data.id))
   }
 
   return {
     hostHere() {
-      if (!started || booted || announced) return
+      if (!started || announced) return
       setNote('')
       sendJoin()
     },
     hostLeft() {
       announced = false
-      booted = false
       dropped.clear()
-      nameInput.disabled = false
-      suggestBtn.hidden = false
-      setPicturesDisabled(false)
-      gate.querySelector('button[type="submit"]').hidden = false
       clearMessages()
       setNote(started ? 'The studio left. The chat returns when it is back.' : '')
     }
   }
 
   function sendJoin() {
-    if (!started || booted || !getHostId()) return
+    if (!started || !getHostId()) return
     announced = true
     action.send({ kind: 'join', name, picture }).catch(() => {
       announced = false
@@ -242,9 +219,6 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
     note.textContent = message
   }
 
-  function setPicturesDisabled(disabled) {
-    for (const choice of pictureChoices.values()) choice.disabled = disabled
-  }
 }
 
 export function mountStudioChat() {
@@ -260,7 +234,6 @@ export function mountStudioChat() {
   const messages = []
   const seen = new Set()
   const people = new Map()
-  const booted = new Set()
   let action = null
 
   form.addEventListener('submit', (event) => {
@@ -268,7 +241,7 @@ export function mountStudioChat() {
     if (!action) return
     const text = cleanText(textInput.value)
     if (!text) return
-    const message = { id: makeId(), name: STUDIO_NAME, text, admin: true, picture: 'studio' }
+    const message = { id: makeId(), name: STUDIO_NAME, text, admin: true, picture: 'studio', at: Date.now() }
     remember(message)
     relay(message)
     textInput.value = ''
@@ -288,8 +261,10 @@ export function mountStudioChat() {
           return
         }
         if (data.kind === 'leave') {
+          const person = people.get(peerId)
           people.delete(peerId)
           renderPeople()
+          if (person) addNotice(`${person.name} left`)
           return
         }
         if (data.kind === 'say') acceptSay(peerId, data)
@@ -300,7 +275,6 @@ export function mountStudioChat() {
       messages.length = 0
       seen.clear()
       people.clear()
-      booted.clear()
       log.replaceChildren()
       peopleEl.replaceChildren()
       textInput.value = ''
@@ -309,21 +283,21 @@ export function mountStudioChat() {
       note.textContent = 'Go live to open the chat.'
     },
     peerLeft(peerId) {
-      if (!people.has(peerId)) return
+      const person = people.get(peerId)
+      if (!person) return
       people.delete(peerId)
       renderPeople()
+      addNotice(`${person.name} left`)
     }
   }
 
   function welcome(peerId, rawName, rawPicture) {
-    if (booted.has(peerId)) {
-      action.send({ kind: 'boot' }, { target: peerId }).catch(() => {})
-      return false
-    }
     const name = cleanName(rawName)
     if (!name) return false
+    const arrived = !people.has(peerId)
     people.set(peerId, { name, picture: cleanPicture(rawPicture) })
     renderPeople()
+    if (arrived) addNotice(`${name} joined`)
     return true
   }
 
@@ -336,8 +310,9 @@ export function mountStudioChat() {
     const picture = cleanPicture(data.picture)
     if (!welcome(peerId, name, picture)) return
     if (seen.has(id)) return
-    remember({ id, name, text, admin: false, picture })
-    relay({ id, name, text, admin: false, picture })
+    const message = { id, name, text, admin: false, picture, at: cleanAt(data.at) }
+    remember(message)
+    relay(message)
     if (isNew) sendLog(peerId)
   }
 
@@ -349,7 +324,16 @@ export function mountStudioChat() {
       seen.delete(old.id)
       log.querySelector(`[data-id="${CSS.escape(old.id)}"]`)?.remove()
     }
-    log.append(renderMessage(message, drop))
+    log.append(renderMessage(message))
+    empty.hidden = true
+    scroll.scrollTop = scroll.scrollHeight
+  }
+
+  function addNotice(text) {
+    const item = document.createElement('li')
+    item.className = 'chat-notice'
+    item.textContent = text
+    log.append(item)
     empty.hidden = true
     scroll.scrollTop = scroll.scrollHeight
   }
@@ -361,32 +345,16 @@ export function mountStudioChat() {
       name: message.name,
       text: message.text,
       admin: message.admin,
-      picture: message.picture
+      picture: message.picture,
+      at: message.at
     }).catch(() => {})
   }
 
   function sendLog(peerId) {
     action?.send({
       kind: 'log',
-      messages: messages.map(({ id, name, text, admin, picture }) => ({ id, name, text, admin, picture }))
+      messages: messages.map(({ id, name, text, admin, picture, at }) => ({ id, name, text, admin, picture, at }))
     }, { target: peerId }).catch(() => {})
-  }
-
-  function drop(id) {
-    if (!seen.has(id)) return
-    seen.delete(id)
-    const index = messages.findIndex((message) => message.id === id)
-    if (index !== -1) messages.splice(index, 1)
-    log.querySelector(`[data-id="${CSS.escape(id)}"]`)?.remove()
-    empty.hidden = log.childElementCount > 0
-    action?.send({ kind: 'drop', id }).catch(() => {})
-  }
-
-  function boot(peerId) {
-    booted.add(peerId)
-    people.delete(peerId)
-    renderPeople()
-    action?.send({ kind: 'boot' }, { target: peerId }).catch(() => {})
   }
 
   function renderPeople() {
@@ -398,41 +366,36 @@ export function mountStudioChat() {
       peopleEl.append(emptyPeople)
       return
     }
-    for (const [peerId, person] of people) {
+    for (const person of people.values()) {
       const row = document.createElement('div')
       row.className = 'chat-person'
-      const who = document.createElement('span')
-      who.className = 'chat-person-id'
       const face = document.createElement('span')
       face.className = 'chat-picture'
       face.append(pictureElement(person.picture))
       const label = document.createElement('span')
       label.className = 'chat-person-label'
       label.textContent = person.name
-      who.append(face, label)
-      const remove = document.createElement('button')
-      remove.type = 'button'
-      remove.className = 'chat-mini'
-      remove.textContent = 'Remove'
-      remove.setAttribute('aria-label', `Remove ${person.name} from the chat`)
-      remove.addEventListener('click', () => boot(peerId))
-      row.append(who, remove)
+      row.append(face, label)
       peopleEl.append(row)
     }
   }
 }
 
-function renderMessage(message, onRemove) {
+function renderMessage(message) {
   const item = document.createElement('li')
   item.className = message.admin ? 'chat-msg admin' : 'chat-msg'
   item.dataset.id = message.id
 
-  const who = document.createElement('span')
-  who.className = 'chat-name'
   const face = document.createElement('span')
   face.className = 'chat-picture'
   face.append(pictureElement(message.admin ? 'studio' : message.picture))
-  who.append(face, document.createTextNode(message.admin ? STUDIO_NAME : message.name))
+
+  const bubble = document.createElement('div')
+  bubble.className = 'chat-bubble'
+
+  const who = document.createElement('span')
+  who.className = 'chat-name'
+  who.append(document.createTextNode(message.admin ? STUDIO_NAME : message.name))
   if (message.admin) {
     const badge = document.createElement('span')
     badge.className = 'chat-badge'
@@ -440,22 +403,20 @@ function renderMessage(message, onRemove) {
     who.append(badge)
   }
 
+  const time = document.createElement('time')
+  time.className = 'chat-time'
+  time.dateTime = new Date(message.at).toISOString()
+  time.textContent = formatTime(message.at)
+
+  const head = document.createElement('span')
+  head.className = 'chat-head'
+  head.append(who, time)
+
   const body = document.createElement('p')
   body.className = 'chat-text'
   body.textContent = message.text
-  item.append(who, body)
-
-  if (onRemove) {
-    const remove = document.createElement('button')
-    remove.type = 'button'
-    remove.className = 'chat-mini'
-    remove.textContent = 'Remove'
-    const speaker = message.admin ? STUDIO_NAME : message.name
-    remove.setAttribute('aria-label', `Remove message from ${speaker}`)
-    remove.addEventListener('click', () => onRemove(message.id))
-    item.append(remove)
-  }
-
+  bubble.append(head, body)
+  item.append(face, bubble)
   return item
 }
 
@@ -466,7 +427,17 @@ function normalize(raw) {
   const admin = Boolean(raw.admin)
   const name = admin ? STUDIO_NAME : cleanName(raw.name)
   if (!id || !text || !name) return null
-  return { id, name, text, admin, picture: admin ? 'studio' : cleanPicture(raw.picture) }
+  return { id, name, text, admin, picture: admin ? 'studio' : cleanPicture(raw.picture), at: cleanAt(raw.at) }
+}
+
+function cleanAt(value) {
+  const at = Number(value)
+  if (!Number.isFinite(at) || at < 1577836800000 || at > Date.now() + 60000) return Date.now()
+  return Math.round(at)
+}
+
+function formatTime(at) {
+  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(at)
 }
 
 function cleanName(value) {

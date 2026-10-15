@@ -23,9 +23,8 @@
     <p class="tag">Mix the microphone with music playing on this computer, then go live. Leave this tab open.</p>
 
     <div class="channels">
-      <section class="channel" aria-labelledby="mic-label">
-        <h2 id="mic-label">Microphone</h2>
-        <button id="mic" class="channel-btn" type="button" aria-pressed="false">Turn on microphone</button>
+      <section class="channel">
+        <button id="mic" class="channel-btn" type="button" aria-pressed="false">Microphone</button>
         <canvas id="mic-meter" class="meter" aria-hidden="true"></canvas>
         <label class="fader">
           <span>Level</span>
@@ -37,10 +36,8 @@
         </div>
       </section>
 
-      <section class="channel" aria-labelledby="music-label">
-        <h2 id="music-label">Music on this computer</h2>
-        <p class="hint">In the share dialog, choose Entire Screen and turn on Share system audio. A browser tab works too if the music is playing in that tab. Only the sound is sent.</p>
-        <button id="music" class="channel-btn" type="button" aria-pressed="false">Capture music</button>
+      <section class="channel">
+        <button id="music" class="channel-btn" type="button" aria-pressed="false">Music</button>
         <canvas id="music-meter" class="meter" aria-hidden="true"></canvas>
         <label class="fader">
           <span>Level</span>
@@ -75,12 +72,6 @@
     </section>
 
     <label class="title-field">
-      <span>Now playing</span>
-      <input id="title" type="text" maxlength="80" placeholder="Song, show, or leave blank" autocomplete="off">
-    </label>
-    <p class="hint">The Radio Vainer extension fills this from the tab that is playing, and updates it when the song changes.</p>
-
-    <label class="title-field">
       <span>Message</span>
       <input id="message" type="text" maxlength="140" placeholder="A line for listeners" autocomplete="off">
     </label>
@@ -91,9 +82,12 @@
 
     <section class="chat" aria-labelledby="studio-chat-label">
       <h2 id="studio-chat-label">Chat</h2>
-      <p class="hint">You run the chat. Remove a message or a listener any time.</p>
       <p id="studio-chat-note" class="note" role="status">Go live to open the chat.</p>
       <div id="studio-chat-live" hidden>
+        <div class="chat-people">
+          <h3>In the chat</h3>
+          <div id="studio-chat-people"></div>
+        </div>
         <div id="studio-chat-scroll" class="chat-scroll">
           <p id="studio-chat-empty" class="chat-empty">No messages yet.</p>
           <ol id="studio-chat-log" class="chat-log" role="log"></ol>
@@ -103,10 +97,6 @@
           <input id="studio-chat-text" type="text" maxlength="280" placeholder="Message the room" required>
           <button class="chat-send" type="submit">Send</button>
         </form>
-        <div class="chat-people">
-          <h3>In the chat</h3>
-          <div id="studio-chat-people"></div>
-        </div>
       </div>
     </section>
 

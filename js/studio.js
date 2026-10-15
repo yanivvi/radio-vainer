@@ -13,7 +13,6 @@ const musicFadeInBtn = document.querySelector('#music-fade-in')
 const musicFadeOutBtn = document.querySelector('#music-fade-out')
 const micMeter = document.querySelector('#mic-meter')
 const musicMeter = document.querySelector('#music-meter')
-const titleInput = document.querySelector('#title')
 const messageInput = document.querySelector('#message')
 const guestInviteBtn = document.querySelector('#guest-invite')
 const guestShare = document.querySelector('#guest-share')
@@ -88,10 +87,6 @@ micFadeInBtn.addEventListener('click', () => micFade.fadeIn())
 micFadeOutBtn.addEventListener('click', () => micFade.fadeOut())
 musicFadeInBtn.addEventListener('click', () => musicFade.fadeIn())
 musicFadeOutBtn.addEventListener('click', () => musicFade.fadeOut())
-
-titleInput.addEventListener('input', () => {
-  if (room) publish()
-})
 
 messageInput.addEventListener('input', () => {
   if (room) publish()
@@ -170,7 +165,6 @@ async function startMic() {
   micStream.getAudioTracks().forEach((track) => {
     track.addEventListener('ended', stopMic)
   })
-  micBtn.textContent = 'Turn off microphone'
   micBtn.setAttribute('aria-pressed', 'true')
   setStatus('')
 }
@@ -183,7 +177,6 @@ function stopMic() {
   micSource = null
   micGain = null
   micAnalyser = null
-  micBtn.textContent = 'Turn on microphone'
   micBtn.setAttribute('aria-pressed', 'false')
 }
 
@@ -230,7 +223,6 @@ async function startMusic() {
   musicGain.connect(destination)
   musicGain.connect(monitor)
   musicGain.connect(musicAnalyser)
-  musicBtn.textContent = 'Stop music capture'
   musicBtn.setAttribute('aria-pressed', 'true')
   setStatus('Music is in the mix. Listeners do not see the screen.')
 }
@@ -243,7 +235,6 @@ function stopMusic() {
   musicSource = null
   musicGain = null
   musicAnalyser = null
-  musicBtn.textContent = 'Capture music'
   musicBtn.setAttribute('aria-pressed', 'false')
 }
 
@@ -368,7 +359,7 @@ function publish(target) {
   const payload = {
     role: 'host',
     live: true,
-    title: titleInput.value.trim(),
+    title: '',
     message: messageInput.value.trim().slice(0, 140),
     listeners: peerCount()
   }
