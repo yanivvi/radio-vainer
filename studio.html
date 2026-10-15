@@ -49,6 +49,28 @@
     <button id="go-live" class="tune" type="button" aria-pressed="false">Go live</button>
     <p id="listeners" class="listeners"></p>
     <p id="status" class="note" role="status"></p>
+
+    <section class="chat" aria-labelledby="studio-chat-label">
+      <h2 id="studio-chat-label">Chat</h2>
+      <p class="hint">You run the chat. Remove a message or a listener any time.</p>
+      <p id="studio-chat-note" class="note" role="status">Go live to open the chat.</p>
+      <div id="studio-chat-live" hidden>
+        <div id="studio-chat-scroll" class="chat-scroll">
+          <p id="studio-chat-empty" class="chat-empty">No messages yet.</p>
+          <ol id="studio-chat-log" class="chat-log" role="log"></ol>
+        </div>
+        <form id="studio-chat-form" class="chat-compose" autocomplete="off">
+          <label class="sr" for="studio-chat-text">Message</label>
+          <input id="studio-chat-text" type="text" maxlength="280" placeholder="Message the room" required>
+          <button class="chat-send" type="submit">Send</button>
+        </form>
+        <div class="chat-people">
+          <h3>In the chat</h3>
+          <div id="studio-chat-people"></div>
+        </div>
+      </div>
+    </section>
+
     <a class="quiet in-booth" href="./">Open the radio</a>
   </main>
   <script type="module" src="js/studio.js"></script>

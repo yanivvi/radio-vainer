@@ -1,3 +1,4 @@
+import { mountListenerChat } from './chat.js'
 import { joinRoom, roomId, roomOptions } from './config.js'
 
 const air = document.querySelector('#air')
@@ -11,10 +12,11 @@ const canvas = document.querySelector('#scope')
 const sources = new WeakMap()
 const player = new Audio()
 player.playsInline = true
-player.volume = 0.9
+player.muted = true
 
 let audioCtx
 let analyser
+let volumeGain
 let sourceNode
 let pendingStream
 let playingStream
@@ -25,6 +27,16 @@ let raf = 0
 const room = joinRoom(roomOptions({ passive: true }), roomId, {
   onJoinError() {
     note.textContent = 'Could not reach the studio. Refresh and try again.'
+  }
+})
+
+const chat = mountListenerChat({
+  room,
+  getHostId: () => hostId,
+  claimHost(peerId) {
+    if (hostId && peerId !== hostId) return false
+    hostId = peerId
+    return true
   }
 })
 
@@ -50,6 +62,7 @@ room.onPeerJoin = (peerId) => {
     now.textContent = 'Live from the studio'
   }
   if (!armed) note.textContent = 'Press listen.'
+  chat.hostHere()
 }
 
 room.onPeerLeave = (peerId) => {
@@ -70,11 +83,12 @@ room.onPeerStream = (stream, peerId, metadata) => {
   } else {
     note.textContent = 'Press listen.'
   }
+  chat.hostHere()
 }
 
 listenBtn.addEventListener('click', async () => {
-  if (armed && !player.paused) {
-    player.pause()
+  if (armed && audioCtx?.state === 'running') {
+    await audioCtx.suspend()
     armed = false
     listenBtn.textContent = 'Listen'
     stopDraw()
@@ -83,7 +97,8 @@ listenBtn.addEventListener('click', async () => {
   }
   armed = true
   listenBtn.textContent = 'Pause'
-  player.volume = Number(volume.value)
+  ensureAudio()
+  await audioCtx.resume()
   if (!pendingStream) {
     note.textContent = 'Tuning in. Sound starts when the studio is live.'
     return
@@ -96,7 +111,7 @@ listenBtn.addEventListener('click', async () => {
 })
 
 volume.addEventListener('input', () => {
-  player.volume = Number(volume.value)
+  if (volumeGain) volumeGain.gain.value = Number(volume.value)
 })
 
 function ensureAudio() {
@@ -104,18 +119,22 @@ function ensureAudio() {
   audioCtx = new AudioContext()
   analyser = audioCtx.createAnalyser()
   analyser.fftSize = 256
-  const mute = audioCtx.createGain()
-  mute.gain.value = 0
-  analyser.connect(mute)
-  mute.connect(audioCtx.destination)
+  volumeGain = audioCtx.createGain()
+  volumeGain.gain.value = Number(volume.value)
+  analyser.connect(volumeGain)
+  volumeGain.connect(audioCtx.destination)
   return audioCtx
 }
 
 async function playStream(stream) {
   pendingStream = stream
-  player.volume = Number(volume.value)
+  // Chrome only delivers remote WebRTC audio to the speakers after this
+  // element is playing. The element stays muted so it is not heard twice.
+  player.muted = true
   if (player.srcObject !== stream) player.srcObject = stream
   await player.play()
+  ensureAudio()
+  await audioCtx.resume()
   try {
     attachMeter(stream)
   } catch {
@@ -155,6 +174,7 @@ function showLive(data) {
   count.textContent = n === 0 ? 'No listeners yet' : n === 1 ? '1 listening' : `${n} listening`
   if (!armed) note.textContent = 'Press listen.'
   document.title = '● Radio Vainer'
+  chat.hostHere()
 }
 
 function goOffAir() {
@@ -163,6 +183,7 @@ function goOffAir() {
   playingStream = null
   player.pause()
   player.srcObject = null
+  audioCtx?.suspend()
   if (sourceNode) {
     sourceNode.disconnect()
     sourceNode = null
@@ -176,6 +197,7 @@ function goOffAir() {
   count.textContent = ''
   if (armed) note.textContent = 'The studio stopped. This will play again when it returns.'
   document.title = 'Radio Vainer'
+  chat.hostLeft()
 }
 
 function draw() {

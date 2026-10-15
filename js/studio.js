@@ -1,3 +1,4 @@
+import { mountStudioChat } from './chat.js'
 import { joinRoom, roomId, roomOptions } from './config.js'
 
 const air = document.querySelector('#air')
@@ -31,6 +32,8 @@ let raf = 0
 let micBusy = false
 let musicBusy = false
 let starting = false
+
+const studioChat = mountStudioChat()
 
 if (!navigator.mediaDevices?.getUserMedia) {
   setStatus('Open the studio in Chrome or Edge on this computer.')
@@ -244,8 +247,12 @@ async function startBroadcast() {
       room.addStream(output, { target: peerId, metadata: { role: 'station' } })
       publish(peerId)
     }
-    room.onPeerLeave = () => publish()
+    room.onPeerLeave = (peerId) => {
+      studioChat.peerLeft(peerId)
+      publish()
+    }
     room.addStream(output, { metadata: { role: 'station' } })
+    studioChat.attach(room)
 
     goLiveBtn.textContent = 'Stop broadcast'
     goLiveBtn.setAttribute('aria-pressed', 'true')
@@ -270,6 +277,7 @@ async function stopBroadcast() {
   } catch {
     // The room may already be empty.
   }
+  studioChat.detach()
   room?.leave()
   room = null
   statusAction = null
@@ -376,6 +384,7 @@ function release() {
   cancelAnimationFrame(raf)
   micStream?.getTracks().forEach((track) => track.stop())
   displayStream?.getTracks().forEach((track) => track.stop())
+  studioChat.detach()
   room?.leave()
   audioCtx?.close()
 }

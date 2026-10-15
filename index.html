@@ -31,6 +31,35 @@
 
     <p id="count" class="listeners"></p>
     <p id="note" class="note" role="status">Press listen. Sound starts when the studio is live.</p>
+
+    <section class="chat" aria-labelledby="chat-label">
+      <h2 id="chat-label">Chat</h2>
+      <form id="chat-gate" class="chat-gate" autocomplete="off">
+        <p class="hint">Pick a name, or use a suggested one. The studio runs the chat.</p>
+        <label class="title-field chat-field">
+          <span>Name</span>
+          <input id="chat-name" type="text" maxlength="24" autocomplete="nickname" spellcheck="false">
+        </label>
+        <div class="chat-actions">
+          <button class="chat-send" type="submit">Start chat</button>
+          <button id="chat-suggest" class="text-btn" type="button">Suggest a name</button>
+        </div>
+      </form>
+      <div id="chat-live" hidden>
+        <p class="chat-you">Talking as <strong id="chat-you"></strong></p>
+        <div id="chat-scroll" class="chat-scroll">
+          <p id="chat-empty" class="chat-empty">No messages yet.</p>
+          <ol id="chat-log" class="chat-log" role="log"></ol>
+        </div>
+        <form id="chat-form" class="chat-compose" autocomplete="off">
+          <label class="sr" for="chat-text">Message</label>
+          <input id="chat-text" type="text" maxlength="280" placeholder="Message" required>
+          <button class="chat-send" type="submit">Send</button>
+        </form>
+        <button id="chat-leave" class="text-btn" type="button">Leave chat</button>
+      </div>
+      <p id="chat-note" class="note" role="status"></p>
+    </section>
   </main>
   <script type="module" src="js/listen.js"></script>
 </body>
