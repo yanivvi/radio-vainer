@@ -227,7 +227,7 @@ function draw() {
       const value = bins[i] / 255
       const h = Math.max(2, value * height)
       ctx.globalAlpha = 0.4 + value * 0.6
-      ctx.fillStyle = '#e8a54b'
+      ctx.fillStyle = '#f07832'
       ctx.fillRect(i * (barWidth + gap), height - h, barWidth, h)
     }
     ctx.globalAlpha = 1

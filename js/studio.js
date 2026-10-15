@@ -468,7 +468,7 @@ function paintMeter(ctx, canvas, analyserNode, sample) {
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, width, height)
-  ctx.fillStyle = '#3a322a'
+  ctx.fillStyle = '#f0d3b0'
   ctx.fillRect(0, height / 2 - 2, width, 4)
 
   let level = 0
@@ -482,7 +482,7 @@ function paintMeter(ctx, canvas, analyserNode, sample) {
     }
     level = Math.min(1, Math.sqrt(sum / count) * 3.2)
   }
-  ctx.fillStyle = level > 0.85 ? '#e23d2b' : '#e8a54b'
+  ctx.fillStyle = level > 0.85 ? '#e23b3b' : '#f07832'
   ctx.fillRect(0, height / 2 - 2, Math.max(0, width * level), 4)
 }
 
