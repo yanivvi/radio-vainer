@@ -252,6 +252,19 @@ input[type="range"]::-moz-range-thumb {
   margin-top: 14px;
 }
 
+.fades {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.fade-btn {
+  margin-top: 0;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
 .title-field input,
 .chat-compose input {
   padding: 12px 14px;

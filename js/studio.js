@@ -7,6 +7,10 @@ const micBtn = document.querySelector('#mic')
 const musicBtn = document.querySelector('#music')
 const micGainInput = document.querySelector('#mic-gain')
 const musicGainInput = document.querySelector('#music-gain')
+const micFadeInBtn = document.querySelector('#mic-fade-in')
+const micFadeOutBtn = document.querySelector('#mic-fade-out')
+const musicFadeInBtn = document.querySelector('#music-fade-in')
+const musicFadeOutBtn = document.querySelector('#music-fade-out')
 const micMeter = document.querySelector('#mic-meter')
 const musicMeter = document.querySelector('#music-meter')
 const titleInput = document.querySelector('#title')
@@ -34,6 +38,8 @@ let musicBusy = false
 let starting = false
 
 const studioChat = mountStudioChat()
+const micFade = createFade(micGainInput, () => micGain)
+const musicFade = createFade(musicGainInput, () => musicGain)
 
 if (!navigator.mediaDevices?.getUserMedia) {
   setStatus('Open the studio in Chrome or Edge on this computer.')
@@ -50,12 +56,17 @@ musicBtn.addEventListener('click', () => {
 })
 
 micGainInput.addEventListener('input', () => {
-  if (micGain) micGain.gain.value = sliderValue(micGainInput)
+  micFade.hold(Number(micGainInput.value))
 })
 
 musicGainInput.addEventListener('input', () => {
-  if (musicGain) musicGain.gain.value = sliderValue(musicGainInput)
+  musicFade.hold(Number(musicGainInput.value))
 })
+
+micFadeInBtn.addEventListener('click', () => micFade.fadeIn())
+micFadeOutBtn.addEventListener('click', () => micFade.fadeOut())
+musicFadeInBtn.addEventListener('click', () => musicFade.fadeIn())
+musicFadeOutBtn.addEventListener('click', () => musicFade.fadeOut())
 
 titleInput.addEventListener('input', () => {
   if (room) publish()
@@ -113,7 +124,7 @@ async function startMic() {
 
   micSource = audioCtx.createMediaStreamSource(micStream)
   micGain = audioCtx.createGain()
-  micGain.gain.value = sliderValue(micGainInput)
+  micFade.apply(micGain)
   micAnalyser = audioCtx.createAnalyser()
   micAnalyser.fftSize = 1024
   micSource.connect(micGain)
@@ -175,7 +186,7 @@ async function startMusic() {
 
   musicSource = audioCtx.createMediaStreamSource(new MediaStream(audioTracks))
   musicGain = audioCtx.createGain()
-  musicGain.gain.value = sliderValue(musicGainInput)
+  musicFade.apply(musicGain)
   musicAnalyser = audioCtx.createAnalyser()
   musicAnalyser.fftSize = 1024
   musicSource.connect(musicGain)
@@ -328,6 +339,102 @@ function sliderValue(input) {
   return Number(input.value) / 100
 }
 
+// A full travel from 0 to 100 takes this long. Shorter moves finish sooner.
+const FADE_MS = 3000
+
+function createFade(input, getGain) {
+  let open = Number(input.value)
+  let frame = 0
+  let running = false
+  let from = open
+  let to = open
+  let started = 0
+  let duration = 0
+
+  input.setAttribute('aria-valuetext', input.value)
+
+  return { fadeIn, fadeOut, hold, apply }
+
+  function fadeIn() {
+    start(open > 0 ? open : 100)
+  }
+
+  function fadeOut() {
+    if (!running) {
+      const current = Number(input.value)
+      if (current > 0) open = current
+    }
+    start(0)
+  }
+
+  function hold(value) {
+    stop()
+    if (value > 0) open = value
+    writeGain(getGain(), value / 100)
+    input.setAttribute('aria-valuetext', String(value))
+  }
+
+  function apply(gainNode) {
+    if (!running) {
+      writeGain(gainNode, sliderValue(input))
+      return
+    }
+    const now = audioCtx.currentTime
+    const elapsed = performance.now() - started
+    const remaining = Math.max(0.05, (duration - elapsed) / 1000)
+    const param = gainNode.gain
+    param.cancelScheduledValues(now)
+    param.setValueAtTime(sliderValue(input), now)
+    param.linearRampToValueAtTime(to / 100, now + remaining)
+  }
+
+  function start(target) {
+    stop()
+    from = Number(input.value)
+    to = target
+    if (from === to) return
+    const distance = Math.abs(to - from)
+    duration = Math.max(180, FADE_MS * (distance / 100))
+    started = performance.now()
+    running = true
+    const gainNode = getGain()
+    if (gainNode && audioCtx) {
+      const now = audioCtx.currentTime
+      const param = gainNode.gain
+      param.cancelScheduledValues(now)
+      param.setValueAtTime(param.value, now)
+      param.linearRampToValueAtTime(to / 100, now + duration / 1000)
+    }
+    frame = requestAnimationFrame(step)
+  }
+
+  function step(now) {
+    if (!running) return
+    const t = Math.min(1, (now - started) / duration)
+    const value = Math.round(from + (to - from) * t)
+    input.value = String(t === 1 ? to : value)
+    input.setAttribute('aria-valuetext', input.value)
+    if (t < 1) {
+      frame = requestAnimationFrame(step)
+      return
+    }
+    running = false
+  }
+
+  function stop() {
+    running = false
+    cancelAnimationFrame(frame)
+  }
+
+  function writeGain(gainNode, value) {
+    if (!gainNode || !audioCtx) return
+    const param = gainNode.gain
+    const now = audioCtx.currentTime
+    param.cancelScheduledValues(now)
+    param.setValueAtTime(value, now)
+  }
+}
+
 async function keepAwake() {
   try {
     wakeLock = await navigator.wakeLock?.request('screen')
@@ -382,6 +489,8 @@ function paintMeter(ctx, canvas, analyserNode, sample) {
 function release() {
   window.clearInterval(pulse)
   cancelAnimationFrame(raf)
+  micFade.hold(Number(micGainInput.value))
+  musicFade.hold(Number(musicGainInput.value))
   micStream?.getTracks().forEach((track) => track.stop())
   displayStream?.getTracks().forEach((track) => track.stop())
   studioChat.detach()

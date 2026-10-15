@@ -25,8 +25,12 @@
         <canvas id="mic-meter" class="meter" aria-hidden="true"></canvas>
         <label class="fader">
           <span>Level</span>
-          <input id="mic-gain" type="range" min="0" max="150" value="100">
+          <input id="mic-gain" type="range" min="0" max="150" value="100" aria-valuetext="100">
         </label>
+        <div class="fades">
+          <button id="mic-fade-in" class="channel-btn fade-btn" type="button">Fade in</button>
+          <button id="mic-fade-out" class="channel-btn fade-btn" type="button">Fade out</button>
+        </div>
       </section>
 
       <section class="channel" aria-labelledby="music-label">
@@ -36,8 +40,12 @@
         <canvas id="music-meter" class="meter" aria-hidden="true"></canvas>
         <label class="fader">
           <span>Level</span>
-          <input id="music-gain" type="range" min="0" max="150" value="80">
+          <input id="music-gain" type="range" min="0" max="150" value="80" aria-valuetext="80">
         </label>
+        <div class="fades">
+          <button id="music-fade-in" class="channel-btn fade-btn" type="button">Fade in</button>
+          <button id="music-fade-out" class="channel-btn fade-btn" type="button">Fade out</button>
+        </div>
       </section>
     </div>
 
