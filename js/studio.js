@@ -14,6 +14,7 @@ const listenersEl = document.querySelector('#listeners')
 
 let audioCtx
 let destination
+let clockSource
 let micStream
 let micSource
 let micGain
@@ -29,6 +30,7 @@ let wakeLock
 let raf = 0
 let micBusy = false
 let musicBusy = false
+let starting = false
 
 if (!navigator.mediaDevices?.getUserMedia) {
   setStatus('Open the studio in Chrome or Edge on this computer.')
@@ -71,6 +73,12 @@ function ensureGraph() {
   if (audioCtx) return
   audioCtx = new AudioContext()
   destination = audioCtx.createMediaStreamDestination()
+  // Chrome does not render this destination track until a source is connected,
+  // so WebRTC would send a dead track. Silence keeps the track rendering.
+  clockSource = audioCtx.createConstantSource()
+  clockSource.offset.value = 0
+  clockSource.connect(destination)
+  clockSource.start()
   loopMeters()
 }
 
@@ -217,33 +225,40 @@ async function captureSystemAudio() {
   throw lastError
 }
 
-function startBroadcast() {
-  ensureGraph()
-  audioCtx.resume().catch(() => {})
-  room = joinRoom(roomOptions(), roomId, {
-    onJoinError() {
-      setStatus('The studio could not connect. Refresh and go live again.')
+async function startBroadcast() {
+  if (room || starting) return
+  starting = true
+  try {
+    ensureGraph()
+    await audioCtx.resume()
+    if (room) return
+    room = joinRoom(roomOptions(), roomId, {
+      onJoinError() {
+        setStatus('The studio could not connect. Refresh and go live again.')
+      }
+    })
+    statusAction = room.makeAction('status')
+    const output = destination.stream
+
+    room.onPeerJoin = (peerId) => {
+      room.addStream(output, { target: peerId, metadata: { role: 'station' } })
+      publish(peerId)
     }
-  })
-  statusAction = room.makeAction('status')
-  const output = destination.stream
+    room.onPeerLeave = () => publish()
+    room.addStream(output, { metadata: { role: 'station' } })
 
-  room.onPeerJoin = (peerId) => {
-    room.addStream(output, { target: peerId, metadata: { role: 'station' } })
-    publish(peerId)
-  }
-  room.onPeerLeave = () => publish()
-  room.addStream(output, { metadata: { role: 'station' } })
-
-  goLiveBtn.textContent = 'Stop broadcast'
-  goLiveBtn.setAttribute('aria-pressed', 'true')
-  setOnAir(true)
-  publish()
-  pulse = window.setInterval(() => publish(), 3000)
-  keepAwake()
-  document.title = '● On air · Radio Vainer'
-  if (!micStream && !displayStream) {
-    setStatus('You are live. Turn on the microphone or capture music so there is something to hear.')
+    goLiveBtn.textContent = 'Stop broadcast'
+    goLiveBtn.setAttribute('aria-pressed', 'true')
+    setOnAir(true)
+    publish()
+    pulse = window.setInterval(() => publish(), 3000)
+    keepAwake()
+    document.title = '● On air · Radio Vainer'
+    if (!micStream && !displayStream) {
+      setStatus('You are live. Turn on the microphone or capture music so there is something to hear.')
+    }
+  } finally {
+    starting = false
   }
 }
 

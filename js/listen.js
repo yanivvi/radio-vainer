@@ -9,8 +9,11 @@ const note = document.querySelector('#note')
 const canvas = document.querySelector('#scope')
 
 const sources = new WeakMap()
+const player = new Audio()
+player.playsInline = true
+player.volume = 0.9
+
 let audioCtx
-let gain
 let analyser
 let sourceNode
 let pendingStream
@@ -62,29 +65,38 @@ room.onPeerStream = (stream, peerId, metadata) => {
   air.classList.add('on')
   air.classList.remove('off')
   pendingStream = stream
-  if (armed) connect(stream)
-  else note.textContent = 'Press listen.'
+  if (armed) {
+    playStream(stream).catch(() => askToListen())
+  } else {
+    note.textContent = 'Press listen.'
+  }
 }
 
 listenBtn.addEventListener('click', async () => {
-  const ctx = ensureAudio()
-  if (armed && ctx.state === 'running') {
-    await ctx.suspend()
+  if (armed && !player.paused) {
+    player.pause()
     armed = false
     listenBtn.textContent = 'Listen'
     stopDraw()
     if (air.classList.contains('on')) note.textContent = 'Press listen.'
     return
   }
-  await ctx.resume()
   armed = true
   listenBtn.textContent = 'Pause'
-  note.textContent = pendingStream ? '' : 'Tuning in. Sound starts when the studio is live.'
-  if (pendingStream) connect(pendingStream)
+  player.volume = Number(volume.value)
+  if (!pendingStream) {
+    note.textContent = 'Tuning in. Sound starts when the studio is live.'
+    return
+  }
+  try {
+    await playStream(pendingStream)
+  } catch {
+    askToListen()
+  }
 })
 
 volume.addEventListener('input', () => {
-  if (gain) gain.gain.value = Number(volume.value)
+  player.volume = Number(volume.value)
 })
 
 function ensureAudio() {
@@ -92,18 +104,31 @@ function ensureAudio() {
   audioCtx = new AudioContext()
   analyser = audioCtx.createAnalyser()
   analyser.fftSize = 256
-  gain = audioCtx.createGain()
-  gain.gain.value = Number(volume.value)
-  analyser.connect(gain)
-  gain.connect(audioCtx.destination)
+  const mute = audioCtx.createGain()
+  mute.gain.value = 0
+  analyser.connect(mute)
+  mute.connect(audioCtx.destination)
   return audioCtx
 }
 
-function connect(stream) {
-  if (playingStream === stream && sourceNode) {
-    if (audioCtx.state === 'running') draw()
-    return
+async function playStream(stream) {
+  pendingStream = stream
+  player.volume = Number(volume.value)
+  if (player.srcObject !== stream) player.srcObject = stream
+  await player.play()
+  try {
+    attachMeter(stream)
+  } catch {
+    // The station still plays if the meter cannot attach.
   }
+  note.textContent = ''
+  if (analyser) draw()
+}
+
+function attachMeter(stream) {
+  ensureAudio()
+  audioCtx.resume().catch(() => {})
+  if (playingStream === stream && sourceNode) return
   if (sourceNode) sourceNode.disconnect()
   let node = sources.get(stream)
   if (!node) {
@@ -113,9 +138,12 @@ function connect(stream) {
   node.connect(analyser)
   sourceNode = node
   playingStream = stream
-  pendingStream = stream
-  note.textContent = ''
-  draw()
+}
+
+function askToListen() {
+  armed = false
+  listenBtn.textContent = 'Listen'
+  note.textContent = 'Press listen to hear the station.'
 }
 
 function showLive(data) {
@@ -133,6 +161,8 @@ function goOffAir() {
   hostId = null
   pendingStream = null
   playingStream = null
+  player.pause()
+  player.srcObject = null
   if (sourceNode) {
     sourceNode.disconnect()
     sourceNode = null
@@ -149,6 +179,7 @@ function goOffAir() {
 }
 
 function draw() {
+  if (!analyser) return
   cancelAnimationFrame(raf)
   const ctx = canvas.getContext('2d')
   const bins = new Uint8Array(analyser.frequencyBinCount)
