@@ -2,7 +2,6 @@ import { mountListenerChat } from './chat.js'
 import { joinRoom, roomId, roomOptions } from './config.js'
 
 const air = document.querySelector('#air')
-const now = document.querySelector('#now')
 const hostMessage = document.querySelector('#host-message')
 const listenBtn = document.querySelector('#listen')
 const count = document.querySelector('#count')
@@ -63,10 +62,6 @@ room.onPeerJoin = (peerId) => {
   air.textContent = 'Live'
   air.classList.add('on')
   air.classList.remove('off')
-  if (now.textContent === 'Waiting for the studio' || now.textContent === 'Off air') {
-    now.textContent = 'Live from the studio'
-  }
-  if (!armed) note.textContent = 'Press listen.'
   chat.hostHere()
 }
 
@@ -83,11 +78,7 @@ room.onPeerStream = (stream, peerId, metadata) => {
   air.classList.add('on')
   air.classList.remove('off')
   pendingStream = stream
-  if (armed) {
-    playStream(stream).catch(() => askToListen())
-  } else {
-    note.textContent = 'Press listen.'
-  }
+  if (armed) playStream(stream).catch(() => askToListen())
   chat.hostHere()
 }
 
@@ -125,7 +116,7 @@ function stopListening() {
   stopDraw()
   audioCtx?.suspend()
   publishSession('paused')
-  if (air.classList.contains('on')) note.textContent = 'Press listen.'
+  note.textContent = ''
 }
 
 function ensureAudio() {
@@ -177,11 +168,10 @@ function attachMeter(stream) {
 
 function publishSession(state) {
   if (!('mediaSession' in navigator)) return
-  const title = now.textContent
-  const named = title && title !== 'Waiting for the studio' && title !== 'Off air'
+  const message = hostMessage.hidden ? '' : hostMessage.textContent.trim()
   navigator.mediaSession.playbackState = state
   navigator.mediaSession.metadata = new MediaMetadata({
-    title: named ? title : 'Radio Vainer',
+    title: message || 'Radio Vainer',
     artist: 'Radio Vainer',
     artwork: [{
       src: new URL('favicon.png', location.href).href,
@@ -202,13 +192,11 @@ function showLive(data) {
   air.textContent = 'Live'
   air.classList.add('on')
   air.classList.remove('off')
-  now.textContent = data.title?.trim() || 'Live from the studio'
   const message = String(data.message || '').trim().slice(0, 140)
   hostMessage.textContent = message
   hostMessage.hidden = message.length === 0
   const n = Number(data.listeners) || 0
   count.textContent = n === 0 ? 'No listeners yet' : n === 1 ? '1 listening' : `${n} listening`
-  if (!armed) note.textContent = 'Press listen.'
   document.title = '● Radio Vainer'
   if (!player.paused) publishSession('playing')
   chat.hostHere()
@@ -233,7 +221,6 @@ function goOffAir() {
   air.textContent = 'Off air'
   air.classList.add('off')
   air.classList.remove('on')
-  now.textContent = 'Off air'
   hostMessage.textContent = ''
   hostMessage.hidden = true
   count.textContent = ''
@@ -282,6 +269,20 @@ function draw() {
 function stopDraw() {
   cancelAnimationFrame(raf)
   raf = 0
+}
+
+pinComposer(document.querySelector('#chat-form'))
+
+function pinComposer(form) {
+  const viewport = window.visualViewport
+  if (!viewport || !form) return
+  const update = () => {
+    const keyboard = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+    document.documentElement.style.setProperty('--keyboard', `${Math.round(keyboard)}px`)
+  }
+  viewport.addEventListener('resize', update)
+  viewport.addEventListener('scroll', update)
+  update()
 }
 
 function clearScope() {

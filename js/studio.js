@@ -101,9 +101,11 @@ guestInviteBtn.addEventListener('click', createCallLink)
 guestCopyBtn.addEventListener('click', copyCallLink)
 guestDropBtn.addEventListener('click', () => releaseGuest(true))
 guestGainInput.addEventListener('input', () => {
-  guestGainInput.setAttribute('aria-valuetext', guestGainInput.value)
+  showLevel(guestGainInput)
   writeGuestGain()
 })
+showLevel(guestGainInput)
+pinComposer(document.querySelector('#studio-chat-form'))
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && room) keepAwake()
@@ -320,7 +322,7 @@ async function startBroadcast() {
     keepAwake()
     document.title = '● On air · Radio Vainer'
     if (callCode && !guestPeerId) {
-      guestNote.textContent = 'Send this link to one caller. A new link replaces it.'
+      guestNote.textContent = 'Send this link to one caller.'
     }
     if (!micStream && !displayStream) {
       setStatus('You are live. Turn on the microphone or capture music so there is something to hear.')
@@ -388,6 +390,24 @@ function setStatus(message) {
   statusEl.textContent = message
 }
 
+function showLevel(input) {
+  input.setAttribute('aria-valuetext', input.value)
+  const level = input.parentElement?.querySelector('.level')
+  if (level) level.textContent = input.value
+}
+
+function pinComposer(form) {
+  const viewport = window.visualViewport
+  if (!viewport || !form) return
+  const update = () => {
+    const keyboard = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+    document.documentElement.style.setProperty('--keyboard', `${Math.round(keyboard)}px`)
+  }
+  viewport.addEventListener('resize', update)
+  viewport.addEventListener('scroll', update)
+  update()
+}
+
 // A full travel from 0 to 100 takes this long. Shorter moves finish sooner.
 const FADE_MS = 3000
 
@@ -400,7 +420,7 @@ function createFade(input, getGain, boost = 1) {
   let started = 0
   let duration = 0
 
-  input.setAttribute('aria-valuetext', input.value)
+  showLevel(input)
 
   return { fadeIn, fadeOut, hold, apply }
 
@@ -424,7 +444,7 @@ function createFade(input, getGain, boost = 1) {
     stop()
     if (value > 0) open = value
     writeGain(getGain(), gainFor(value))
-    input.setAttribute('aria-valuetext', String(value))
+    showLevel(input)
   }
 
   function apply(gainNode) {
@@ -466,7 +486,7 @@ function createFade(input, getGain, boost = 1) {
     const t = Math.min(1, (now - started) / duration)
     const value = Math.round(from + (to - from) * t)
     input.value = String(t === 1 ? to : value)
-    input.setAttribute('aria-valuetext', input.value)
+    showLevel(input)
     if (t < 1) {
       frame = requestAnimationFrame(step)
       return
@@ -524,7 +544,7 @@ function paintMeter(ctx, canvas, analyserNode, sample) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, width, height)
   ctx.fillStyle = '#f0d3b0'
-  ctx.fillRect(0, height / 2 - 2, width, 4)
+  ctx.fillRect(0, height / 2 - 4, width, 8)
 
   let level = 0
   if (analyserNode) {
@@ -538,7 +558,7 @@ function paintMeter(ctx, canvas, analyserNode, sample) {
     level = Math.min(1, Math.sqrt(sum / count) * 3.2)
   }
   ctx.fillStyle = level > 0.85 ? '#e23b3b' : '#f07832'
-  ctx.fillRect(0, height / 2 - 2, Math.max(0, width * level), 4)
+  ctx.fillRect(0, height / 2 - 4, Math.max(0, width * level), 8)
 }
 
 function createCallLink() {
@@ -548,10 +568,11 @@ function createCallLink() {
   url.searchParams.set('call', callCode)
   guestUrlInput.value = url.href
   guestShare.hidden = false
+  guestInviteBtn.setAttribute('aria-pressed', 'true')
   guestCopyBtn.textContent = 'Copy'
   guestNote.textContent = room
-    ? 'Send this link to one caller. A new link replaces it.'
-    : 'Send this link to one caller. They connect once you go live.'
+    ? 'Send this link to one caller.'
+    : 'Send this link. They connect once you go live.'
 }
 
 async function copyCallLink() {
@@ -668,8 +689,8 @@ function releaseGuest(tellCaller) {
   guestWho.textContent = ''
   if (callCode) {
     guestNote.textContent = room
-      ? 'Send this link to one caller. A new link replaces it.'
-      : 'Send this link to one caller. They connect once you go live.'
+      ? 'Send this link to one caller.'
+      : 'Send this link. They connect once you go live.'
   }
   if (tellCaller && peerId) {
     callerAction?.send({ kind: 'drop' }, { target: peerId }).catch(() => {})

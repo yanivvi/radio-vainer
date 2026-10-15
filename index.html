@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Radio Vainer</title>
   <meta name="description" content="Live from the desk. Radio Vainer.">
   <meta name="theme-color" content="#f6efe4">
@@ -20,18 +20,17 @@
       <span id="air" class="air off">Off air</span>
     </header>
 
-    <img class="logo" src="logo.jpg" alt="">
+    <img class="logo logo-mark" src="logo.jpg" alt="">
     <h1>Radio Vainer</h1>
     <p class="tag">A one-person station.</p>
-    <p id="now" class="now">Waiting for the studio</p>
     <p id="host-message" class="host-message" hidden></p>
-    <canvas id="scope" class="scope" aria-hidden="true"></canvas>
 
     <audio id="player" playsinline></audio>
     <button id="listen" class="tune" type="button">Listen</button>
+    <canvas id="scope" class="scope" aria-hidden="true"></canvas>
 
     <p id="count" class="listeners"></p>
-    <p id="note" class="note" role="status">Press listen. Sound starts when the studio is live.</p>
+    <p id="note" class="note" role="status"></p>
 
     <section class="chat" aria-labelledby="chat-label">
       <h2 id="chat-label">Chat</h2>

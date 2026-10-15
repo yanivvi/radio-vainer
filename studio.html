@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Studio · Radio Vainer</title>
   <meta name="theme-color" content="#f6efe4">
   <link rel="icon" href="favicon.png" type="image/png">
@@ -15,19 +15,25 @@
   <main class="booth">
     <header class="mast">
       <a class="brand link" href="./">Radio Vainer</a>
-      <span id="air" class="air off">Off air</span>
     </header>
 
-    <img class="logo" src="logo.jpg" alt="">
+    <img class="logo logo-mark" src="logo.jpg" alt="">
     <h1>Studio</h1>
-    <p class="tag">Mix the microphone with music playing on this computer, then go live. Leave this tab open.</p>
+
+    <div class="studio-grid">
+    <div class="mix">
+    <div class="dock">
+      <span id="air" class="air off">Off air</span>
+      <p id="listeners" class="listeners"></p>
+      <button id="go-live" class="tune" type="button" aria-pressed="false">Go live</button>
+    </div>
 
     <div class="channels">
       <section class="channel">
         <button id="mic" class="channel-btn" type="button" aria-pressed="false">Microphone</button>
         <canvas id="mic-meter" class="meter" aria-hidden="true"></canvas>
         <label class="fader">
-          <span>Level</span>
+          <span>Level <b class="level">100</b></span>
           <input id="mic-gain" type="range" min="0" max="150" value="100" aria-valuetext="100">
         </label>
         <div class="fades">
@@ -40,7 +46,7 @@
         <button id="music" class="channel-btn" type="button" aria-pressed="false">Music</button>
         <canvas id="music-meter" class="meter" aria-hidden="true"></canvas>
         <label class="fader">
-          <span>Level</span>
+          <span>Level <b class="level">80</b></span>
           <input id="music-gain" type="range" min="0" max="150" value="80" aria-valuetext="80">
         </label>
         <div class="fades">
@@ -48,37 +54,34 @@
           <button id="music-fade-out" class="channel-btn fade-btn" type="button">Fade out</button>
         </div>
       </section>
-    </div>
 
-    <section class="channel guest-channel" aria-labelledby="guest-label">
-      <h2 id="guest-label">Guest caller</h2>
-      <p class="hint">Create a link for one caller. Their voice is mixed into the station, and they hear the studio without hearing themselves back.</p>
-      <button id="guest-invite" class="channel-btn" type="button">Create guest link</button>
-      <div id="guest-share" class="guest-share" hidden>
-        <input id="guest-url" type="text" readonly value="" aria-label="Guest link">
-        <button id="guest-copy" class="channel-btn" type="button">Copy</button>
-      </div>
-      <p id="guest-note" class="note"></p>
-      <div id="guest-on" hidden>
-        <p id="guest-who" class="now"></p>
-        <audio id="guest-player" playsinline></audio>
-        <canvas id="guest-meter" class="meter" aria-hidden="true"></canvas>
-        <label class="fader">
-          <span>Level</span>
-          <input id="guest-gain" type="range" min="0" max="150" value="100" aria-valuetext="100">
-        </label>
-        <button id="guest-drop" class="channel-btn" type="button">Drop caller</button>
-      </div>
-    </section>
+      <section class="channel guest-channel">
+        <button id="guest-invite" class="channel-btn" type="button" aria-pressed="false">Guest</button>
+        <div id="guest-share" class="guest-share" hidden>
+          <input id="guest-url" type="text" readonly value="" aria-label="Guest link">
+          <button id="guest-copy" class="channel-btn" type="button">Copy</button>
+        </div>
+        <p id="guest-note" class="note"></p>
+        <div id="guest-on" hidden>
+          <p id="guest-who" class="now"></p>
+          <audio id="guest-player" playsinline></audio>
+          <canvas id="guest-meter" class="meter" aria-hidden="true"></canvas>
+          <label class="fader">
+            <span>Level <b class="level">100</b></span>
+            <input id="guest-gain" type="range" min="0" max="150" value="100" aria-valuetext="100">
+          </label>
+          <button id="guest-drop" class="channel-btn" type="button">Drop caller</button>
+        </div>
+      </section>
+    </div>
 
     <label class="title-field">
       <span>Message</span>
       <input id="message" type="text" maxlength="140" placeholder="A line for listeners" autocomplete="off">
     </label>
-
-    <button id="go-live" class="tune" type="button" aria-pressed="false">Go live</button>
-    <p id="listeners" class="listeners"></p>
     <p id="status" class="note" role="status"></p>
+    <a class="quiet in-booth" href="./">Open the radio</a>
+    </div>
 
     <section class="chat" aria-labelledby="studio-chat-label">
       <h2 id="studio-chat-label">Chat</h2>
@@ -99,8 +102,7 @@
         </form>
       </div>
     </section>
-
-    <a class="quiet in-booth" href="./">Open the radio</a>
+    </div>
   </main>
   <script type="module" src="js/studio.js"></script>
 </body>
