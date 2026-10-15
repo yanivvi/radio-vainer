@@ -23,6 +23,7 @@ const guestNote = document.querySelector('#guest-note')
 const guestOn = document.querySelector('#guest-on')
 const guestWho = document.querySelector('#guest-who')
 const guestMeter = document.querySelector('#guest-meter')
+const guestPlayer = document.querySelector('#guest-player')
 const guestGainInput = document.querySelector('#guest-gain')
 const guestDropBtn = document.querySelector('#guest-drop')
 const statusEl = document.querySelector('#status')
@@ -46,7 +47,7 @@ let callCode = ''
 let guestPeerId = null
 let guestStream = null
 let heldCaller = null
-let guestSource = null
+let guestStreamSource = null
 let guestGain = null
 let guestAnalyser = null
 let monitor = null
@@ -58,7 +59,7 @@ let musicBusy = false
 let starting = false
 
 const studioChat = mountStudioChat()
-const micFade = createFade(micGainInput, () => micGain)
+const micFade = createFade(micGainInput, () => micGain, 3)
 const musicFade = createFade(musicGainInput, () => musicGain)
 
 if (!navigator.mediaDevices?.getUserMedia) {
@@ -281,6 +282,7 @@ async function startBroadcast() {
   starting = true
   try {
     ensureGraph()
+    unlockGuestPlayer()
     await audioCtx.resume()
     if (room) return
     room = joinRoom(roomOptions(), roomId, {
@@ -395,14 +397,10 @@ function setStatus(message) {
   statusEl.textContent = message
 }
 
-function sliderValue(input) {
-  return Number(input.value) / 100
-}
-
 // A full travel from 0 to 100 takes this long. Shorter moves finish sooner.
 const FADE_MS = 3000
 
-function createFade(input, getGain) {
+function createFade(input, getGain, boost = 1) {
   let open = Number(input.value)
   let frame = 0
   let running = false
@@ -414,6 +412,10 @@ function createFade(input, getGain) {
   input.setAttribute('aria-valuetext', input.value)
 
   return { fadeIn, fadeOut, hold, apply }
+
+  function gainFor(value) {
+    return (Number(value) / 100) * boost
+  }
 
   function fadeIn() {
     start(open > 0 ? open : 100)
@@ -430,13 +432,13 @@ function createFade(input, getGain) {
   function hold(value) {
     stop()
     if (value > 0) open = value
-    writeGain(getGain(), value / 100)
+    writeGain(getGain(), gainFor(value))
     input.setAttribute('aria-valuetext', String(value))
   }
 
   function apply(gainNode) {
     if (!running) {
-      writeGain(gainNode, sliderValue(input))
+      writeGain(gainNode, gainFor(input.value))
       return
     }
     const now = audioCtx.currentTime
@@ -444,8 +446,8 @@ function createFade(input, getGain) {
     const remaining = Math.max(0.05, (duration - elapsed) / 1000)
     const param = gainNode.gain
     param.cancelScheduledValues(now)
-    param.setValueAtTime(sliderValue(input), now)
-    param.linearRampToValueAtTime(to / 100, now + remaining)
+    param.setValueAtTime(gainFor(input.value), now)
+    param.linearRampToValueAtTime(gainFor(to), now + remaining)
   }
 
   function start(target) {
@@ -463,7 +465,7 @@ function createFade(input, getGain) {
       const param = gainNode.gain
       param.cancelScheduledValues(now)
       param.setValueAtTime(param.value, now)
-      param.linearRampToValueAtTime(to / 100, now + duration / 1000)
+      param.linearRampToValueAtTime(gainFor(to), now + duration / 1000)
     }
     frame = requestAnimationFrame(step)
   }
@@ -608,18 +610,40 @@ function sendCallerReturn(peerId) {
   room.addStream(monitor.stream, { target: peerId, metadata: { role: 'return' } })
 }
 
-function mixCaller(stream) {
-  if (!audioCtx || guestStream === stream) return
-  unmixCaller()
-  guestStream = stream
-  guestSource = audioCtx.createMediaStreamSource(stream)
+function unlockGuestPlayer() {
+  guestPlayer.playsInline = true
+  guestPlayer.volume = 0
+  if (!guestPlayer.srcObject) guestPlayer.srcObject = new MediaStream()
+  guestPlayer.play().catch(() => {})
+}
+
+function ensureGuestBus() {
+  if (guestGain || !audioCtx) return
   guestGain = audioCtx.createGain()
-  writeGuestGain()
   guestAnalyser = audioCtx.createAnalyser()
   guestAnalyser.fftSize = 1024
-  guestSource.connect(guestGain)
   guestGain.connect(destination)
+  guestGain.connect(audioCtx.destination)
   guestGain.connect(guestAnalyser)
+}
+
+function attachGuestStream(stream) {
+  if (guestStream !== stream || !audioCtx || !guestGain) return
+  if (guestStreamSource) guestStreamSource.disconnect()
+  // The element has to be playing or Chrome never delivers this remote track.
+  // The samples themselves come from the stream, not from the element.
+  guestStreamSource = audioCtx.createMediaStreamSource(stream)
+  guestStreamSource.connect(guestGain)
+}
+
+function mixCaller(stream) {
+  if (!audioCtx || guestStream === stream) return
+  guestStream = stream
+  ensureGuestBus()
+  writeGuestGain()
+  guestPlayer.volume = 0
+  guestPlayer.srcObject = stream
+  guestPlayer.play().then(() => attachGuestStream(stream)).catch(() => {})
   stream.getAudioTracks().forEach((track) => {
     track.addEventListener('ended', () => {
       if (guestStream === stream) releaseGuest(false)
@@ -635,11 +659,12 @@ function writeGuestGain() {
 }
 
 function unmixCaller() {
-  guestSource?.disconnect()
-  guestGain?.disconnect()
-  guestSource = null
-  guestGain = null
-  guestAnalyser = null
+  guestPlayer.pause()
+  guestPlayer.srcObject = null
+  if (guestStreamSource) {
+    guestStreamSource.disconnect()
+    guestStreamSource = null
+  }
   guestStream = null
 }
 
