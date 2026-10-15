@@ -11,6 +11,9 @@ const micFadeInBtn = document.querySelector('#mic-fade-in')
 const micFadeOutBtn = document.querySelector('#mic-fade-out')
 const musicFadeInBtn = document.querySelector('#music-fade-in')
 const musicFadeOutBtn = document.querySelector('#music-fade-out')
+const speakBtn = document.querySelector('#mode-speak')
+const playBtn = document.querySelector('#mode-play')
+const autoBtn = document.querySelector('#mode-auto')
 const micMeter = document.querySelector('#mic-meter')
 const musicMeter = document.querySelector('#music-meter')
 const messageInput = document.querySelector('#message')
@@ -35,6 +38,7 @@ let micStream
 let micSource
 let micGain
 let micAnalyser
+let voiceAnalyser
 let displayStream
 let musicSource
 let musicGain
@@ -56,6 +60,10 @@ let raf = 0
 let micBusy = false
 let musicBusy = false
 let starting = false
+let autoOn = false
+let talking = false
+let loudSince = 0
+let quietSince = 0
 
 const studioChat = mountStudioChat()
 const micFade = createFade(micGainInput, () => micGain, 3)
@@ -77,11 +85,17 @@ musicBtn.addEventListener('click', () => {
 
 micGainInput.addEventListener('input', () => {
   micFade.hold(Number(micGainInput.value))
+  clearMixMode()
 })
 
 musicGainInput.addEventListener('input', () => {
   musicFade.hold(Number(musicGainInput.value))
+  clearMixMode()
 })
+
+speakBtn.addEventListener('click', () => { speak() })
+playBtn.addEventListener('click', () => { play() })
+autoBtn.addEventListener('click', () => { setAuto(!autoOn) })
 
 micFadeInBtn.addEventListener('click', () => micFade.fadeIn())
 micFadeOutBtn.addEventListener('click', () => micFade.fadeOut())
@@ -160,6 +174,9 @@ async function startMic() {
   micFade.apply(micGain)
   micAnalyser = audioCtx.createAnalyser()
   micAnalyser.fftSize = 1024
+  voiceAnalyser = audioCtx.createAnalyser()
+  voiceAnalyser.fftSize = 1024
+  micSource.connect(voiceAnalyser)
   micSource.connect(micGain)
   micGain.connect(destination)
   micGain.connect(monitor)
@@ -172,6 +189,7 @@ async function startMic() {
 }
 
 function stopMic() {
+  if (autoOn) setAuto(false)
   micStream?.getTracks().forEach((track) => track.stop())
   micSource?.disconnect()
   micGain?.disconnect()
@@ -179,6 +197,10 @@ function stopMic() {
   micSource = null
   micGain = null
   micAnalyser = null
+  voiceAnalyser = null
+  talking = false
+  loudSince = 0
+  quietSince = 0
   micBtn.setAttribute('aria-pressed', 'false')
 }
 
@@ -390,6 +412,82 @@ function setStatus(message) {
   statusEl.textContent = message
 }
 
+const SPEAK_LEVEL = 0.12
+const SPEAK_MS = 90
+const QUIET_MS = 700
+
+async function speak() {
+  setMixMode('speak')
+  if (musicGain) musicFade.fadeOut()
+  if (!micStream) await startMic()
+  if (micGain) micFade.fadeIn()
+}
+
+function play() {
+  setMixMode('play')
+  if (micGain) micFade.fadeOut()
+  if (musicGain) musicFade.fadeIn()
+}
+
+async function setAuto(on) {
+  autoOn = on
+  autoBtn.setAttribute('aria-pressed', on ? 'true' : 'false')
+  talking = false
+  loudSince = 0
+  quietSince = 0
+  if (!on) return
+  if (!micStream) {
+    await startMic()
+    if (!micStream) {
+      autoOn = false
+      autoBtn.setAttribute('aria-pressed', 'false')
+    }
+  }
+}
+
+function setMixMode(mode) {
+  speakBtn.setAttribute('aria-pressed', mode === 'speak' ? 'true' : 'false')
+  playBtn.setAttribute('aria-pressed', mode === 'play' ? 'true' : 'false')
+}
+
+function clearMixMode() {
+  setMixMode('')
+}
+
+function watchVoice(level) {
+  if (!autoOn || !voiceAnalyser) return
+  const now = performance.now()
+  if (level >= SPEAK_LEVEL) {
+    quietSince = 0
+    if (!loudSince) loudSince = now
+    if (!talking && now - loudSince >= SPEAK_MS) {
+      talking = true
+      speak()
+    }
+    return
+  }
+  loudSince = 0
+  if (!talking) return
+  if (!quietSince) quietSince = now
+  if (now - quietSince >= QUIET_MS) {
+    talking = false
+    quietSince = 0
+    play()
+  }
+}
+
+function signalLevel(analyserNode, sample) {
+  if (!analyserNode) return 0
+  analyserNode.getByteTimeDomainData(sample)
+  let sum = 0
+  const count = analyserNode.fftSize
+  for (let i = 0; i < count; i += 1) {
+    const n = (sample[i] - 128) / 128
+    sum += n * n
+  }
+  return Math.min(1, Math.sqrt(sum / count) * 3.2)
+}
+
 function showLevel(input) {
   input.setAttribute('aria-valuetext', input.value)
   const level = input.parentElement?.querySelector('.level')
@@ -523,6 +621,7 @@ function loopMeters() {
   const sample = new Uint8Array(1024)
 
   const frame = () => {
+    watchVoice(signalLevel(voiceAnalyser, sample))
     paintMeter(micCtx, micMeter, micAnalyser, sample)
     paintMeter(musicCtx, musicMeter, musicAnalyser, sample)
     paintMeter(guestCtx, guestMeter, guestAnalyser, sample)
@@ -546,17 +645,7 @@ function paintMeter(ctx, canvas, analyserNode, sample) {
   ctx.fillStyle = '#f0d3b0'
   ctx.fillRect(0, height / 2 - 4, width, 8)
 
-  let level = 0
-  if (analyserNode) {
-    analyserNode.getByteTimeDomainData(sample)
-    let sum = 0
-    const count = analyserNode.fftSize
-    for (let i = 0; i < count; i += 1) {
-      const n = (sample[i] - 128) / 128
-      sum += n * n
-    }
-    level = Math.min(1, Math.sqrt(sum / count) * 3.2)
-  }
+  const level = signalLevel(analyserNode, sample)
   ctx.fillStyle = level > 0.85 ? '#e23b3b' : '#f07832'
   ctx.fillRect(0, height / 2 - 4, Math.max(0, width * level), 8)
 }

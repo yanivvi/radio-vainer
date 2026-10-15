@@ -17,11 +17,12 @@
       <a class="brand link" href="./">Radio Vainer</a>
     </header>
 
-    <img class="logo logo-mark" src="logo.jpg" alt="">
-    <h1>Studio</h1>
-
     <div class="studio-grid">
     <div class="mix">
+    <div class="studio-head">
+      <img class="logo logo-mark" src="logo.jpg" alt="">
+      <h1>Studio</h1>
+    </div>
     <div class="dock">
       <span id="air" class="air off">Off air</span>
       <p id="listeners" class="listeners"></p>
@@ -54,6 +55,12 @@
           <button id="music-fade-out" class="channel-btn fade-btn" type="button">Fade out</button>
         </div>
       </section>
+
+      <div class="mix-modes">
+        <button id="mode-speak" class="channel-btn fade-btn" type="button" aria-pressed="false">Speak</button>
+        <button id="mode-play" class="channel-btn fade-btn" type="button" aria-pressed="false">Play</button>
+        <button id="mode-auto" class="channel-btn fade-btn" type="button" aria-pressed="false">Auto</button>
+      </div>
 
       <section class="channel guest-channel">
         <button id="guest-invite" class="channel-btn" type="button" aria-pressed="false">Guest</button>
