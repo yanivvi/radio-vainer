@@ -5,7 +5,6 @@ const air = document.querySelector('#air')
 const now = document.querySelector('#now')
 const hostMessage = document.querySelector('#host-message')
 const listenBtn = document.querySelector('#listen')
-const volume = document.querySelector('#volume')
 const count = document.querySelector('#count')
 const note = document.querySelector('#note')
 const canvas = document.querySelector('#scope')
@@ -13,7 +12,7 @@ const canvas = document.querySelector('#scope')
 const sources = new WeakMap()
 const player = document.querySelector('#player')
 player.playsInline = true
-player.volume = 0.9
+player.volume = 1
 
 let audioCtx
 let analyser
@@ -102,10 +101,6 @@ player.addEventListener('pause', () => {
   stopListening()
 })
 
-volume.addEventListener('input', () => {
-  player.volume = Number(volume.value)
-})
-
 async function startListening() {
   armed = true
   listenBtn.textContent = 'Pause'
@@ -150,7 +145,7 @@ function ensureAudio() {
 async function playStream(stream) {
   pendingStream = stream
   player.muted = false
-  player.volume = Number(volume.value)
+  player.volume = 1
   if (player.srcObject !== stream) player.srcObject = stream
   await player.play()
   publishSession('playing')
