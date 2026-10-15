@@ -414,7 +414,8 @@ function setStatus(message) {
 
 const SPEAK_LEVEL = 0.12
 const SPEAK_MS = 90
-const QUIET_MS = 700
+// A breath is about a second of quiet. Wait past that before ending the turn.
+const QUIET_MS = 2000
 
 async function speak() {
   setMixMode('speak')
