@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <title>Remote · Radio Vainer</title>
+  <meta name="theme-color" content="#f6efe4">
+  <link rel="icon" href="favicon.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/radio.css">
+</head>
+<body>
+  <main class="chassis remote">
+    <header class="mast">
+      <a class="brand link" href="./">Radio Vainer</a>
+      <span id="air" class="air off">Off air</span>
+    </header>
+
+    <div class="studio-head">
+      <img class="logo logo-mark" src="logo.jpg" alt="">
+      <h1>Remote</h1>
+    </div>
+    <p id="listeners" class="listeners"></p>
+    <p id="note" class="note" role="status">Open the link from the studio.</p>
+
+    <div id="deck" hidden>
+      <button id="go-live" class="tune" type="button" aria-pressed="false">Go live</button>
+
+      <section class="channel">
+        <button id="mic" class="channel-btn" type="button" aria-pressed="false">Microphone</button>
+        <canvas id="mic-meter" class="meter" aria-hidden="true"></canvas>
+        <label class="fader">
+          <span>Level <b class="level">100</b></span>
+          <input id="mic-gain" type="range" min="0" max="150" value="100" aria-valuetext="100">
+        </label>
+      </section>
+
+      <section class="channel">
+        <h2>Music</h2>
+        <p id="music-note" class="hint">Start music on the laptop.</p>
+        <canvas id="music-meter" class="meter" aria-hidden="true"></canvas>
+        <label class="fader">
+          <span>Level <b class="level">80</b></span>
+          <input id="music-gain" type="range" min="0" max="150" value="80" aria-valuetext="80">
+        </label>
+        <button id="music-stop" class="channel-btn" type="button" hidden>Stop music</button>
+      </section>
+
+      <div class="mix-modes">
+        <button id="mode-speak" class="channel-btn fade-btn" type="button" aria-pressed="false">Speak</button>
+        <button id="mode-play" class="channel-btn fade-btn" type="button" aria-pressed="false">Play</button>
+        <button id="mode-auto" class="channel-btn fade-btn" type="button" aria-pressed="false">Auto</button>
+      </div>
+
+      <section class="channel">
+        <h2>Guest</h2>
+        <p id="guest-who" class="now">No caller</p>
+        <canvas id="guest-meter" class="meter" aria-hidden="true"></canvas>
+        <label class="fader">
+          <span>Level <b class="level">100</b></span>
+          <input id="guest-gain" type="range" min="0" max="150" value="100" aria-valuetext="100">
+        </label>
+        <button id="guest-drop" class="channel-btn" type="button" hidden>Drop caller</button>
+      </section>
+
+      <label class="title-field">
+        <span>Message</span>
+        <input id="message" type="text" maxlength="140" placeholder="A line for listeners" autocomplete="off">
+      </label>
+    </div>
+  </main>
+  <script type="module" src="js/remote.js"></script>
+</body>
+</html>

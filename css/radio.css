@@ -262,6 +262,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .guest-channel,
+.remote-channel,
 .mix-modes { grid-column: 1 / -1; }
 
 .mix-modes {
@@ -732,6 +733,19 @@ input[type="range"]::-moz-range-thumb {
     bottom: calc(120px + var(--keyboard, 0px) + env(safe-area-inset-bottom));
   }
   .booth .studio-head .logo.logo-mark { width: 64px; }
+}
+
+.chassis.remote {
+  padding-bottom: calc(28px + env(safe-area-inset-bottom));
+}
+
+.remote .channel,
+.remote .mix-modes { margin-top: 16px; }
+
+.remote .studio-head .logo.logo-mark {
+  width: 64px;
+  margin: 0;
+  border-radius: 16px;
 }
 
 @media (prefers-reduced-motion: reduce) {

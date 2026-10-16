@@ -80,6 +80,16 @@
           <button id="guest-drop" class="channel-btn" type="button">Drop caller</button>
         </div>
       </section>
+
+      <section class="channel remote-channel">
+        <button id="remote-invite" class="channel-btn" type="button" aria-pressed="false">Remote</button>
+        <p class="hint">Open the booth on a phone. Music capture stays on this computer.</p>
+        <div id="remote-share" class="guest-share" hidden>
+          <input id="remote-url" type="text" readonly value="" aria-label="Remote link">
+          <button id="remote-copy" class="channel-btn" type="button">Copy</button>
+        </div>
+        <p id="remote-note" class="note"></p>
+      </section>
     </div>
 
     <label class="title-field">

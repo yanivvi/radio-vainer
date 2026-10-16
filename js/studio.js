@@ -1,4 +1,5 @@
 import { mountStudioChat } from './chat.js'
+import { deckActionName, deckRoomId, readDeckCode } from './deck.js'
 import { joinRoom, roomId, roomOptions } from './config.js'
 
 const air = document.querySelector('#air')
@@ -28,6 +29,11 @@ const guestMeter = document.querySelector('#guest-meter')
 const guestPlayer = document.querySelector('#guest-player')
 const guestGainInput = document.querySelector('#guest-gain')
 const guestDropBtn = document.querySelector('#guest-drop')
+const remoteInviteBtn = document.querySelector('#remote-invite')
+const remoteShare = document.querySelector('#remote-share')
+const remoteUrlInput = document.querySelector('#remote-url')
+const remoteCopyBtn = document.querySelector('#remote-copy')
+const remoteNote = document.querySelector('#remote-note')
 const statusEl = document.querySelector('#status')
 const listenersEl = document.querySelector('#listeners')
 
@@ -53,6 +59,15 @@ let heldCaller = null
 let guestStreamSource = null
 let guestGain = null
 let guestAnalyser = null
+let deckCode = ''
+let deckRoom = null
+let deckAction = null
+let deckPeerId = null
+let deckPulse = 0
+let deckBusy = false
+const deckSample = new Uint8Array(1024)
+const deckStore = 'radio-vainer-deck'
+const deckWaiting = 'Open this link on your phone. This tab keeps the show.'
 let monitor = null
 let pulse
 let wakeLock
@@ -60,6 +75,7 @@ let raf = 0
 let micBusy = false
 let musicBusy = false
 let starting = false
+let broadcastEpoch = 0
 let autoOn = false
 let talking = false
 let loudSince = 0
@@ -112,7 +128,10 @@ goLiveBtn.addEventListener('click', () => {
 })
 
 guestInviteBtn.addEventListener('click', createCallLink)
-guestCopyBtn.addEventListener('click', copyCallLink)
+guestCopyBtn.addEventListener('click', () => copyLink(guestUrlInput, guestCopyBtn))
+remoteInviteBtn.addEventListener('click', () => { createDeckLink() })
+window.addEventListener('pointerdown', () => { unlockAudio() })
+remoteCopyBtn.addEventListener('click', () => copyLink(remoteUrlInput, remoteCopyBtn))
 guestDropBtn.addEventListener('click', () => releaseGuest(true))
 guestGainInput.addEventListener('input', () => {
   showLevel(guestGainInput)
@@ -122,10 +141,27 @@ showLevel(guestGainInput)
 pinComposer(document.querySelector('#studio-chat-form'))
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && room) keepAwake()
+  if (document.visibilityState === 'visible' && (room || deckCode)) keepAwake()
 })
 
 window.addEventListener('pagehide', release)
+
+function unlockAudio() {
+  ensureGraph()
+  audioCtx.resume().catch(() => {})
+}
+
+async function runningAudio() {
+  ensureGraph()
+  let rejected = false
+  const resume = audioCtx.resume().catch(() => { rejected = true })
+  await Promise.race([resume, wait(1500)])
+  if (rejected || audioCtx.state !== 'running') {
+    setStatus('Click this tab once so the browser will allow the broadcast.')
+    return false
+  }
+  return true
+}
 
 function ensureGraph() {
   if (audioCtx) return
@@ -147,9 +183,8 @@ async function startMic() {
   if (micBusy) return
   micBusy = true
   micBtn.disabled = true
-  ensureGraph()
-  await audioCtx.resume()
   try {
+    if (!await runningAudio()) return
     micStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
@@ -295,11 +330,12 @@ async function captureSystemAudio() {
 async function startBroadcast() {
   if (room || starting) return
   starting = true
+  const epoch = broadcastEpoch
   try {
     ensureGraph()
     unlockGuestPlayer()
-    await audioCtx.resume()
-    if (room) return
+    if (!await runningAudio()) return
+    if (epoch !== broadcastEpoch || room) return
     room = joinRoom(roomOptions(), roomId, {
       onJoinError() {
         setStatus('The studio could not connect. Refresh and go live again.')
@@ -355,6 +391,7 @@ async function startBroadcast() {
 }
 
 async function stopBroadcast() {
+  broadcastEpoch += 1
   window.clearInterval(pulse)
   pulse = null
   try {
@@ -665,20 +702,246 @@ function createCallLink() {
     : 'Send this link. They connect once you go live.'
 }
 
-async function copyCallLink() {
-  const link = guestUrlInput.value
+function copyLink(input, button) {
+  const link = input.value
   if (!link) return
-  try {
-    await navigator.clipboard.writeText(link)
-    guestCopyBtn.textContent = 'Copied'
-  } catch {
-    guestUrlInput.focus()
-    guestUrlInput.select()
-    guestCopyBtn.textContent = 'Select the link'
+  const finish = (label) => {
+    button.textContent = label
+    window.setTimeout(() => {
+      if (button.textContent === label) button.textContent = 'Copy'
+    }, 1600)
   }
-  window.setTimeout(() => {
-    if (guestCopyBtn.textContent !== 'Copy') guestCopyBtn.textContent = 'Copy'
-  }, 1600)
+  try {
+    navigator.clipboard.writeText(link).then(() => {
+      finish('Copied')
+    }).catch(() => {
+      input.focus()
+      input.select()
+      finish('Select the link')
+    })
+  } catch {
+    input.focus()
+    input.select()
+    finish('Select the link')
+  }
+}
+
+async function createDeckLink() {
+  if (deckBusy) return
+  unlockAudio()
+  deckBusy = true
+  remoteInviteBtn.disabled = true
+  try {
+    if (deckPeerId && deckAction) {
+      await Promise.race([
+        deckAction.send({ kind: 'replaced' }, { target: deckPeerId }).catch(() => {}),
+        wait(300)
+      ])
+    }
+    const code = crypto.randomUUID().replaceAll('-', '')
+    try { sessionStorage.setItem(deckStore, code) } catch { /* private mode */ }
+    showDeckLink(code)
+    joinDeck(code)
+  } catch {
+    remoteNote.textContent = 'The remote link could not be made. Press Remote again.'
+  } finally {
+    deckBusy = false
+    remoteInviteBtn.disabled = false
+  }
+}
+
+function showDeckLink(code) {
+  const url = new URL('remote.html', location.href)
+  url.search = ''
+  url.hash = code
+  remoteUrlInput.value = url.href
+  remoteShare.hidden = false
+  remoteInviteBtn.setAttribute('aria-pressed', 'true')
+  remoteCopyBtn.textContent = 'Copy'
+  keepAwake()
+}
+
+// The phone talks on its own room, named by the secret in the link.
+// Listeners never join it, and the studio can answer before it goes live.
+function joinDeck(code) {
+  const id = deckRoomId(code)
+  if (!id) return
+  leaveDeck()
+  deckCode = readDeckCode(code)
+  deckRoom = joinRoom(roomOptions(), id, {
+    onJoinError() {
+      remoteNote.textContent = 'The remote link could not connect. Press Remote again.'
+    }
+  })
+  deckAction = deckRoom.makeAction(deckActionName)
+  deckAction.onMessage = (data, { peerId }) => { onDeckMessage(data, peerId) }
+  deckRoom.onPeerLeave = (peerId) => {
+    if (peerId !== deckPeerId) return
+    clearDeckPeer()
+  }
+  remoteNote.textContent = deckWaiting
+  keepAwake()
+}
+
+function leaveDeck() {
+  window.clearInterval(deckPulse)
+  deckPulse = 0
+  deckPeerId = null
+  const current = deckRoom
+  deckRoom = null
+  deckAction = null
+  try { current?.leave() } catch { /* already gone */ }
+}
+
+function clearDeckPeer() {
+  deckPeerId = null
+  window.clearInterval(deckPulse)
+  deckPulse = 0
+  if (deckCode) remoteNote.textContent = deckWaiting
+}
+
+function onDeckMessage(data, peerId) {
+  if (!data || typeof data.kind !== 'string') return
+  if (data.kind === 'hello') {
+    if (data.code !== deckCode) {
+      deckAction?.send({ kind: 'deny' }, { target: peerId }).catch(() => {})
+      return
+    }
+    if (deckPeerId && deckPeerId !== peerId) {
+      deckAction?.send({ kind: 'busy' }, { target: peerId }).catch(() => {})
+      return
+    }
+    const fresh = deckPeerId !== peerId
+    deckPeerId = peerId
+    if (fresh) {
+      remoteNote.textContent = 'Phone is connected.'
+      startDeckPulse()
+    }
+    sendDeckState()
+    return
+  }
+  if (peerId !== deckPeerId) return
+  if (data.kind === 'bye') {
+    clearDeckPeer()
+    return
+  }
+  applyDeckCommand(data).then(() => sendDeckState()).catch(() => {})
+}
+
+async function applyDeckCommand(data) {
+  if (data.kind === 'live') {
+    if (data.on === true && !room) await startBroadcast()
+    else if (data.on === false && room) await stopBroadcast()
+    return
+  }
+  if (data.kind === 'mic') {
+    if (data.on === true && !micStream) await startMic()
+    else if (data.on === false && micStream) stopMic()
+    return
+  }
+  if (data.kind === 'music') {
+    if (data.on === false && displayStream) stopMusic()
+    return
+  }
+  if (data.kind === 'level') {
+    const value = clampLevel(data.value)
+    if (value === null) return
+    if (data.channel === 'mic') {
+      micGainInput.value = String(value)
+      micFade.hold(value)
+      clearMixMode()
+    } else if (data.channel === 'music') {
+      musicGainInput.value = String(value)
+      musicFade.hold(value)
+      clearMixMode()
+    } else if (data.channel === 'guest') {
+      guestGainInput.value = String(value)
+      showLevel(guestGainInput)
+      writeGuestGain()
+    }
+    return
+  }
+  if (data.kind === 'speak') {
+    await speak()
+    return
+  }
+  if (data.kind === 'play') {
+    play()
+    return
+  }
+  if (data.kind === 'auto') {
+    if (typeof data.on === 'boolean') await setAuto(data.on)
+    return
+  }
+  if (data.kind === 'message') {
+    if (typeof data.text !== 'string') return
+    messageInput.value = data.text.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 140)
+    if (room) publish()
+    return
+  }
+  if (data.kind === 'drop' && guestPeerId) releaseGuest(true)
+}
+
+function sendDeckState() {
+  if (!deckAction || !deckPeerId) return
+  deckAction.send(deckSnapshot(), { target: deckPeerId }).catch(() => {})
+}
+
+function startDeckPulse() {
+  if (deckPulse) return
+  deckPulse = window.setInterval(sendDeckState, 200)
+}
+
+function deckSnapshot() {
+  return {
+    kind: 'state',
+    live: !!room,
+    listeners: room ? peerCount() : 0,
+    micOn: !!micStream,
+    musicOn: !!displayStream,
+    guestOn: !!guestPeerId,
+    guestName: guestPeerId ? guestWho.textContent : '',
+    micLevel: Number(micGainInput.value),
+    musicLevel: Number(musicGainInput.value),
+    guestLevel: Number(guestGainInput.value),
+    micMeter: meterOf(micAnalyser),
+    musicMeter: meterOf(musicAnalyser),
+    guestMeter: meterOf(guestAnalyser),
+    mode: mixMode(),
+    auto: autoOn,
+    message: messageInput.value,
+    status: statusEl.textContent
+  }
+}
+
+function meterOf(analyserNode) {
+  if (!analyserNode) return 0
+  return Math.round(signalLevel(analyserNode, deckSample) * 100) / 100
+}
+
+function mixMode() {
+  if (speakBtn.getAttribute('aria-pressed') === 'true') return 'speak'
+  if (playBtn.getAttribute('aria-pressed') === 'true') return 'play'
+  return ''
+}
+
+function clampLevel(value) {
+  const n = Math.round(Number(value))
+  if (!Number.isFinite(n)) return null
+  return Math.min(150, Math.max(0, n))
+}
+
+function restoreDeck() {
+  let saved = ''
+  try { saved = sessionStorage.getItem(deckStore) || '' } catch { return }
+  const code = readDeckCode(saved)
+  if (!code) return
+  showDeckLink(code)
+  joinDeck(code)
+}
+
+function wait(ms) {
+  return new Promise((resolve) => { window.setTimeout(resolve, ms) })
 }
 
 function acceptCaller(peerId, data) {
@@ -789,6 +1052,8 @@ function releaseGuest(tellCaller) {
 }
 
 function release() {
+  broadcastEpoch += 1
+  leaveDeck()
   window.clearInterval(pulse)
   cancelAnimationFrame(raf)
   micFade.hold(Number(micGainInput.value))
@@ -800,3 +1065,5 @@ function release() {
   room?.leave()
   audioCtx?.close()
 }
+
+restoreDeck()

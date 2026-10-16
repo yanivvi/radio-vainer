@@ -63,6 +63,14 @@ Music has to be captured before Speak will move it. Play brings the music back o
 
 The caller hears the station without their own microphone. Listeners hear the caller through the guest fader. **Drop caller** ends that call. A new **Guest** press replaces the link.
 
+## The remote
+
+The phone cannot capture the music. The laptop stays the booth. **Remote** in the studio makes a one-time link (`remote.html#…`). Open it on the phone.
+
+The phone joins a private room that listeners are not in, so a listener cannot move the faders. It can go live, stop, move the microphone, music, and guest levels, run Speak, Play, and Auto, edit the message, and drop the caller. Meters and the listener count come from the laptop. Starting the music capture stays on the laptop, because the browser only shows that share dialog there. The phone can fade that music and stop it.
+
+Refreshing the studio tab keeps the same link. A new **Remote** press replaces it. Keep that tab open. While the link is up, or the station is live, the page asks the screen to stay on.
+
 ## The room
 
 Listeners pick a name and a picture, then talk. The name Studio is reserved. The studio relays every message, and a person who joins receives the recent log, up to 40 messages. Join and leave lines show in the studio. Messages stay once they are sent. Chat is open only while the On Air light is on.
@@ -72,13 +80,16 @@ Listeners pick a name and a picture, then talk. The name Studio is reserved. The
 | Page | On the desk |
 | --- | --- |
 | `index.html` | The radio. The mark, Listen, the host's line, and chat. |
-| `studio.html` | The mix, the broadcast, the guest link, and chat. |
+| `studio.html` | The mix, the broadcast, the guest link, the remote link, and chat. |
 | `guest.html` | One caller, opened from the studio link. The full booth picture. |
+| `remote.html` | The phone booth. Faders and the message, aimed at the laptop. |
 | `logo.jpg` | The host at the desk. Shown large on the caller page, small beside the titles. |
 | `js/config.js` | Shared room id and Trystero options. |
-| `js/studio.js` | Mix, fades, broadcast, and the caller. |
+| `js/deck.js` | The remote link's code and private room id. |
+| `js/studio.js` | Mix, fades, broadcast, the caller, and the remote. |
 | `js/listen.js` | Listener playback. |
 | `js/guest.js` | Caller playback and microphone. |
+| `js/remote.js` | Remote commands. The studio is the one that mixes. |
 | `js/chat.js` | Chat for the radio page and the studio. |
 
 `extension/` was built to fill a Now Playing field from the tab that is playing audio. The studio no longer has that field, so the extension does nothing.
