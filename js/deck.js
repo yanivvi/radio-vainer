@@ -1,11 +1,4 @@
 export const deckActionName = 'deck'
 
-export function readDeckCode(raw) {
-  const code = String(raw || '').trim().toLowerCase()
-  return /^[0-9a-f]{32}$/.test(code) ? code : ''
-}
-
-export function deckRoomId(code) {
-  const valid = readDeckCode(code)
-  return valid ? `deck-${valid}` : ''
-}
+// Fixed room, separate from the listener room, so the phone link never changes.
+export const deckRoomId = 'deck'

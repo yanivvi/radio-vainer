@@ -1,5 +1,5 @@
 import { mountStudioChat } from './chat.js'
-import { deckActionName, deckRoomId, readDeckCode } from './deck.js'
+import { deckActionName, deckRoomId } from './deck.js'
 import { joinRoom, roomId, roomOptions } from './config.js'
 
 const air = document.querySelector('#air')
@@ -59,12 +59,11 @@ let heldCaller = null
 let guestStreamSource = null
 let guestGain = null
 let guestAnalyser = null
-let deckCode = ''
+let deckOn = false
 let deckRoom = null
 let deckAction = null
 let deckPeerId = null
 let deckPulse = 0
-let deckBusy = false
 const deckSample = new Uint8Array(1024)
 const deckStore = 'radio-vainer-deck'
 const deckWaiting = 'Open this link on your phone. This tab keeps the show.'
@@ -141,7 +140,7 @@ showLevel(guestGainInput)
 pinComposer(document.querySelector('#studio-chat-form'))
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && (room || deckCode)) keepAwake()
+  if (document.visibilityState === 'visible' && (room || deckOn)) keepAwake()
 })
 
 window.addEventListener('pagehide', release)
@@ -726,34 +725,16 @@ function copyLink(input, button) {
   }
 }
 
-async function createDeckLink() {
-  if (deckBusy) return
+function createDeckLink() {
   unlockAudio()
-  deckBusy = true
-  remoteInviteBtn.disabled = true
-  try {
-    if (deckPeerId && deckAction) {
-      await Promise.race([
-        deckAction.send({ kind: 'replaced' }, { target: deckPeerId }).catch(() => {}),
-        wait(300)
-      ])
-    }
-    const code = crypto.randomUUID().replaceAll('-', '')
-    try { sessionStorage.setItem(deckStore, code) } catch { /* private mode */ }
-    showDeckLink(code)
-    joinDeck(code)
-  } catch {
-    remoteNote.textContent = 'The remote link could not be made. Press Remote again.'
-  } finally {
-    deckBusy = false
-    remoteInviteBtn.disabled = false
-  }
+  showDeckLink()
+  joinDeck()
 }
 
-function showDeckLink(code) {
+function showDeckLink() {
   const url = new URL('remote.html', location.href)
   url.search = ''
-  url.hash = code
+  url.hash = ''
   remoteUrlInput.value = url.href
   remoteShare.hidden = false
   remoteInviteBtn.setAttribute('aria-pressed', 'true')
@@ -761,14 +742,13 @@ function showDeckLink(code) {
   keepAwake()
 }
 
-// The phone talks on its own room, named by the secret in the link.
-// Listeners never join it, and the studio can answer before it goes live.
-function joinDeck(code) {
-  const id = deckRoomId(code)
-  if (!id) return
-  leaveDeck()
-  deckCode = readDeckCode(code)
-  deckRoom = joinRoom(roomOptions(), id, {
+// The phone talks on its own room. Listeners never join it,
+// and the studio can answer before it goes live.
+function joinDeck() {
+  if (deckRoom) return
+  deckOn = true
+  try { sessionStorage.setItem(deckStore, '1') } catch { /* private mode */ }
+  deckRoom = joinRoom(roomOptions(), deckRoomId, {
     onJoinError() {
       remoteNote.textContent = 'The remote link could not connect. Press Remote again.'
     }
@@ -797,16 +777,12 @@ function clearDeckPeer() {
   deckPeerId = null
   window.clearInterval(deckPulse)
   deckPulse = 0
-  if (deckCode) remoteNote.textContent = deckWaiting
+  if (deckOn) remoteNote.textContent = deckWaiting
 }
 
 function onDeckMessage(data, peerId) {
   if (!data || typeof data.kind !== 'string') return
   if (data.kind === 'hello') {
-    if (data.code !== deckCode) {
-      deckAction?.send({ kind: 'deny' }, { target: peerId }).catch(() => {})
-      return
-    }
     if (deckPeerId && deckPeerId !== peerId) {
       deckAction?.send({ kind: 'busy' }, { target: peerId }).catch(() => {})
       return
@@ -934,10 +910,9 @@ function clampLevel(value) {
 function restoreDeck() {
   let saved = ''
   try { saved = sessionStorage.getItem(deckStore) || '' } catch { return }
-  const code = readDeckCode(saved)
-  if (!code) return
-  showDeckLink(code)
-  joinDeck(code)
+  if (!saved) return
+  showDeckLink()
+  joinDeck()
 }
 
 function wait(ms) {

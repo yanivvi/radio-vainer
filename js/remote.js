@@ -1,4 +1,4 @@
-import { deckActionName, deckRoomId, readDeckCode } from './deck.js'
+import { deckActionName, deckRoomId } from './deck.js'
 import { joinRoom, roomOptions } from './config.js'
 
 const air = document.querySelector('#air')
@@ -21,8 +21,6 @@ const guestMeter = document.querySelector('#guest-meter')
 const guestGainInput = document.querySelector('#guest-gain')
 const guestDropBtn = document.querySelector('#guest-drop')
 const messageInput = document.querySelector('#message')
-
-const deckCode = readHashCode()
 
 let room
 let deckAction
@@ -70,17 +68,11 @@ window.addEventListener('pagehide', () => {
   room?.leave()
 })
 
-if (!deckCode) {
-  note.textContent = 'Open the link from the studio.'
-} else {
-  note.textContent = 'Waiting for the studio tab.'
-  join()
-}
+note.textContent = 'Waiting for the studio tab.'
+join()
 
 function join() {
-  const id = deckRoomId(deckCode)
-  if (!id) return
-  room = joinRoom(roomOptions({ passive: true }), id, {
+  room = joinRoom(roomOptions({ passive: true }), deckRoomId, {
     onJoinError() {
       if (!linked) note.textContent = 'Could not reach the studio. Refresh and try again.'
     }
@@ -104,11 +96,6 @@ function join() {
       if (!linked) note.textContent = 'This link is open on another phone.'
       return
     }
-    if (data.kind === 'deny') {
-      stopLink('That link is no longer good. Make a new one on the studio.')
-      return
-    }
-    if (data.kind === 'replaced') stopLink('The studio made a new link. Open that one.')
   }
 
   room.onPeerJoin = (peerId) => {
@@ -133,7 +120,7 @@ function hello() {
       if (ids.length !== 1) return
       hostId = ids[0]
     }
-    deckAction.send({ kind: 'hello', code: deckCode }, { target: hostId }).catch(() => {})
+    deckAction.send({ kind: 'hello' }, { target: hostId }).catch(() => {})
   } catch {
     // The room may still be opening.
   }
@@ -151,20 +138,6 @@ function waitForStudio() {
   listenersEl.textContent = ''
   setAir(false)
   note.textContent = 'Waiting for the studio tab.'
-}
-
-function stopLink(message) {
-  window.clearInterval(helloTimer)
-  helloTimer = 0
-  linked = false
-  hostId = null
-  deckPanel.hidden = true
-  listenersEl.textContent = ''
-  setAir(false)
-  note.textContent = message
-  room?.leave()
-  room = null
-  deckAction = null
 }
 
 function applyState(data) {
@@ -305,12 +278,4 @@ function unit(value) {
 
 function clean(text, max) {
   return String(text || '').replace(/[\u0000-\u001f\u007f]/g, '').slice(0, max)
-}
-
-function readHashCode() {
-  try {
-    return readDeckCode(decodeURIComponent(location.hash.slice(1)))
-  } catch {
-    return ''
-  }
 }
