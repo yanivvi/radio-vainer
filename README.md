@@ -65,11 +65,11 @@ The caller hears the station without their own microphone. Listeners hear the ca
 
 ## The remote
 
-The phone cannot capture the music. The laptop stays the booth. **Remote** in the studio makes a one-time link (`remote.html#…`). Open it on the phone.
+The phone cannot capture the music. The laptop stays the booth. **Remote** in the studio shows the phone link (`remote.html`). It is the same link every time. Open it on the phone and keep it.
 
-The phone joins a private room that listeners are not in, so a listener cannot move the faders. It can go live, stop, move the microphone, music, and guest levels, run Speak, Play, and Auto, edit the message, and drop the caller. Meters and the listener count come from the laptop. Starting the music capture stays on the laptop, because the browser only shows that share dialog there. The phone can fade that music and stop it.
+The phone joins a room the radio page does not use, so a listener cannot move the faders. It can go live, stop, move the microphone, music, and guest levels, run Speak, Play, and Auto, edit the message, and drop the caller. Meters and the listener count come from the laptop. Starting the music capture stays on the laptop, because the browser only shows that share dialog there. The phone can fade that music and stop it.
 
-Refreshing the studio tab keeps the same link. A new **Remote** press replaces it. Keep that tab open. While the link is up, or the station is live, the page asks the screen to stay on.
+Refreshing the studio tab keeps the phone connected. Pressing **Remote** again shows the same link. Keep that tab open. While the link is up, or the station is live, the page asks the screen to stay on.
 
 ## The room
 
@@ -85,7 +85,7 @@ Listeners pick a name and a picture, then talk. The name Studio is reserved. The
 | `remote.html` | The phone booth. Faders and the message, aimed at the laptop. |
 | `logo.jpg` | The host at the desk. Shown large on the caller page, small beside the titles. |
 | `js/config.js` | Shared room id and Trystero options. |
-| `js/deck.js` | The remote link's code and private room id. |
+| `js/deck.js` | The remote's room id. |
 | `js/studio.js` | Mix, fades, broadcast, the caller, and the remote. |
 | `js/listen.js` | Listener playback. |
 | `js/guest.js` | Caller playback and microphone. |
