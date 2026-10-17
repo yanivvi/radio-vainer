@@ -2,20 +2,16 @@ import { deckActionName, deckRoomId } from './deck.js'
 import { joinRoom, roomOptions } from './config.js'
 
 const air = document.querySelector('#air')
-const listenersEl = document.querySelector('#listeners')
 const note = document.querySelector('#note')
 const deckPanel = document.querySelector('#deck')
-const goLiveBtn = document.querySelector('#go-live')
 const micBtn = document.querySelector('#mic')
 const micGainInput = document.querySelector('#mic-gain')
 const micMeter = document.querySelector('#mic-meter')
 const musicNote = document.querySelector('#music-note')
 const musicGainInput = document.querySelector('#music-gain')
 const musicMeter = document.querySelector('#music-meter')
-const musicStopBtn = document.querySelector('#music-stop')
 const speakBtn = document.querySelector('#mode-speak')
 const playBtn = document.querySelector('#mode-play')
-const autoBtn = document.querySelector('#mode-auto')
 const guestWho = document.querySelector('#guest-who')
 const guestMeter = document.querySelector('#guest-meter')
 const guestGainInput = document.querySelector('#guest-gain')
@@ -29,25 +25,37 @@ let linked = false
 let applying = false
 let dragChannel = ''
 let helloTimer = 0
+let micStream = null
+let micToken = 0
+let micBusy = false
+let localNote = ''
+let wakeLock = null
+let wakeWanted = false
 
 showLevel(micGainInput)
 showLevel(musicGainInput)
 showLevel(guestGainInput)
 
-goLiveBtn.addEventListener('click', () => {
-  send({ kind: 'live', on: goLiveBtn.getAttribute('aria-pressed') !== 'true' })
-})
 micBtn.addEventListener('click', () => {
-  send({ kind: 'mic', on: micBtn.getAttribute('aria-pressed') !== 'true' })
+  if (micStream) {
+    stopDeviceMic()
+    send({ kind: 'mic', on: false })
+    return
+  }
+  if (micBusy) {
+    stopDeviceMic()
+    return
+  }
+  openDeviceMic().then((opened) => {
+    if (opened) send({ kind: 'mic', on: true })
+  })
 })
-musicStopBtn.addEventListener('click', () => {
-  send({ kind: 'music', on: false })
+speakBtn.addEventListener('click', () => {
+  openDeviceMic().then((opened) => {
+    if (opened) send({ kind: 'speak' })
+  })
 })
-speakBtn.addEventListener('click', () => send({ kind: 'speak' }))
 playBtn.addEventListener('click', () => send({ kind: 'play' }))
-autoBtn.addEventListener('click', () => {
-  send({ kind: 'auto', on: autoBtn.getAttribute('aria-pressed') !== 'true' })
-})
 guestDropBtn.addEventListener('click', () => send({ kind: 'drop' }))
 messageInput.addEventListener('input', () => {
   if (applying) return
@@ -60,10 +68,15 @@ bindLevel(guestGainInput, 'guest')
 window.addEventListener('pointerup', () => { dragChannel = '' })
 window.addEventListener('pointercancel', () => { dragChannel = '' })
 
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && micStream) keepAwake()
+})
+
 window.addEventListener('pagehide', () => {
   window.clearInterval(helloTimer)
+  stopDeviceMic()
   if (linked && hostId && deckAction) {
-    deckAction.send({ kind: 'bye' }, { target: hostId }).catch(() => {})
+    deckAction.send({ kind: 'bye', role: 'remote' }, { target: hostId }).catch(() => {})
   }
   room?.leave()
 })
@@ -72,7 +85,7 @@ note.textContent = 'Waiting for the studio tab.'
 join()
 
 function join() {
-  room = joinRoom(roomOptions({ passive: true }), deckRoomId, {
+  room = joinRoom(roomOptions(), deckRoomId, {
     onJoinError() {
       if (!linked) note.textContent = 'Could not reach the studio. Refresh and try again.'
     }
@@ -80,28 +93,29 @@ function join() {
   deckAction = room.makeAction(deckActionName)
 
   deckAction.onMessage = (data, { peerId }) => {
-    if (!data || typeof data.kind !== 'string') return
-    if (data.kind === 'state') {
-      if (hostId && peerId !== hostId) return
-      hostId = peerId
-      if (!linked) {
-        linked = true
-        deckPanel.hidden = false
-      }
-      applyState(data)
-      return
-    }
-    if (!hostId || peerId !== hostId) return
+    if (!data || typeof data.kind !== 'string' || data.role !== 'studio') return
     if (data.kind === 'busy') {
       if (!linked) note.textContent = 'This link is open on another phone.'
       return
     }
+    if (data.kind === 'meters') {
+      if (!linked || peerId !== hostId) return
+      paintMeter(micMeter, unit(data.mic))
+      paintMeter(musicMeter, unit(data.music))
+      paintMeter(guestMeter, unit(data.guest))
+      return
+    }
+    if (data.kind !== 'state') return
+    if (hostId && peerId !== hostId && linked) return
+    hostId = peerId
+    if (!linked) {
+      linked = true
+      deckPanel.hidden = false
+    }
+    applyState(data)
   }
 
-  room.onPeerJoin = (peerId) => {
-    if (!hostId) hostId = peerId
-    hello()
-  }
+  room.onPeerJoin = (peerId) => { helloTo(peerId) }
 
   room.onPeerLeave = (peerId) => {
     if (peerId !== hostId) return
@@ -113,71 +127,164 @@ function join() {
 
 function hello() {
   if (!room || !deckAction || linked) return
+  let ids = []
   try {
-    if (!hostId) {
-      const peers = room.getPeers()
-      const ids = peers instanceof Map ? [...peers.keys()] : Object.keys(peers || {})
-      if (ids.length !== 1) return
-      hostId = ids[0]
-    }
-    deckAction.send({ kind: 'hello' }, { target: hostId }).catch(() => {})
+    const peers = room.getPeers()
+    ids = peers instanceof Map ? [...peers.keys()] : Object.keys(peers || {})
   } catch {
-    // The room may still be opening.
+    return
   }
+  for (const id of ids) helloTo(id)
+}
+
+function helloTo(peerId) {
+  if (!deckAction || linked || !peerId) return
+  deckAction.send({ kind: 'hello', role: 'remote' }, { target: peerId }).catch(() => {})
 }
 
 function send(payload) {
   if (!linked || !deckAction || !hostId) return
-  deckAction.send(payload, { target: hostId }).catch(() => {})
+  deckAction.send({ role: 'remote', ...payload }, { target: hostId }).catch(() => {})
+}
+
+async function openDeviceMic() {
+  if (micStream) return true
+  if (micBusy) return false
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setLocalNote('Open this page in Chrome or Safari to use the microphone.')
+    return false
+  }
+  if (!room || !hostId) return false
+  micBusy = true
+  const token = micToken + 1
+  micToken = token
+  try {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: false
+        },
+        video: false
+      })
+    } catch (err) {
+      micStream = null
+      setLocalNote(err?.name === 'NotAllowedError'
+        ? 'Microphone permission was blocked.'
+        : 'Could not open the microphone.')
+      return false
+    }
+    if (micToken !== token) {
+      micStream?.getTracks().forEach((track) => track.stop())
+      micStream = null
+      return false
+    }
+    micStream.getAudioTracks().forEach((track) => {
+      track.addEventListener('ended', () => {
+        if (micToken !== token) return
+        micStream = null
+        micToken += 1
+        markMic(false)
+        send({ kind: 'mic', on: false })
+      })
+    })
+    try {
+      const pending = room.addStream(micStream, {
+        target: hostId,
+        metadata: { role: 'mic' }
+      })
+      const tasks = Array.isArray(pending) ? pending : pending ? [pending] : []
+      await Promise.all(tasks)
+    } catch {
+      if (micToken === token) {
+        stopDeviceMic()
+        setLocalNote('Could not send the microphone to the studio.')
+      }
+      return false
+    }
+    if (micToken !== token) return false
+    clearLocalNote()
+    markMic(true)
+    keepAwake()
+    return true
+  } finally {
+    micBusy = false
+  }
+}
+
+function stopDeviceMic() {
+  const stream = micStream
+  micStream = null
+  micToken += 1
+  markMic(false)
+  clearLocalNote()
+  if (stream && room && hostId) {
+    try { room.removeStream(stream, { target: hostId }) } catch { /* already gone */ }
+  }
+  stream?.getTracks().forEach((track) => track.stop())
+  letSleep()
+}
+
+async function keepAwake() {
+  wakeWanted = true
+  try {
+    const lock = await navigator.wakeLock?.request('screen')
+    if (!wakeWanted) {
+      lock?.release().catch(() => {})
+      return
+    }
+    wakeLock = lock
+  } catch {
+    wakeLock = null
+  }
+}
+
+function letSleep() {
+  wakeWanted = false
+  const current = wakeLock
+  wakeLock = null
+  current?.release().catch(() => {})
+}
+
+function markMic(on) {
+  micBtn.setAttribute('aria-pressed', on ? 'true' : 'false')
+}
+
+function setLocalNote(text) {
+  localNote = text
+  note.textContent = text
+}
+
+function clearLocalNote() {
+  localNote = ''
 }
 
 function waitForStudio() {
+  stopDeviceMic()
   linked = false
   hostId = null
   deckPanel.hidden = true
-  listenersEl.textContent = ''
   setAir(false)
   note.textContent = 'Waiting for the studio tab.'
 }
 
 function applyState(data) {
-  if (typeof data.live === 'boolean') {
-    setAir(data.live)
-    goLiveBtn.textContent = data.live ? 'Stop broadcast' : 'Go live'
-    goLiveBtn.setAttribute('aria-pressed', data.live ? 'true' : 'false')
-    if (data.live) {
-      const count = clampCount(data.listeners)
-      listenersEl.textContent = count === 0
-        ? 'No listeners yet'
-        : count === 1
-          ? '1 listening'
-          : `${count} listening`
-    } else {
-      listenersEl.textContent = ''
-    }
-  }
+  if (typeof data.live === 'boolean') setAir(data.live)
 
-  if (typeof data.micOn === 'boolean') {
-    micBtn.setAttribute('aria-pressed', data.micOn ? 'true' : 'false')
-  }
+  if (!micBusy) markMic(!!micStream)
   setSlider(micGainInput, data.micLevel, 'mic')
-  paintMeter(micMeter, unit(data.micMeter))
 
   if (typeof data.musicOn === 'boolean') {
-    musicStopBtn.hidden = !data.musicOn
     musicNote.textContent = data.musicOn
       ? 'Playing from the laptop.'
       : 'Start music on the laptop.'
   }
   setSlider(musicGainInput, data.musicLevel, 'music')
-  paintMeter(musicMeter, unit(data.musicMeter))
 
   if (data.mode === 'speak' || data.mode === 'play' || data.mode === '') {
     speakBtn.setAttribute('aria-pressed', data.mode === 'speak' ? 'true' : 'false')
     playBtn.setAttribute('aria-pressed', data.mode === 'play' ? 'true' : 'false')
-  }
-  if (typeof data.auto === 'boolean') {
-    autoBtn.setAttribute('aria-pressed', data.auto ? 'true' : 'false')
   }
 
   if (typeof data.guestOn === 'boolean') {
@@ -187,7 +294,6 @@ function applyState(data) {
       : 'No caller'
   }
   setSlider(guestGainInput, data.guestLevel, 'guest')
-  paintMeter(guestMeter, unit(data.guestMeter))
 
   if (typeof data.message === 'string' && document.activeElement !== messageInput) {
     const next = clean(data.message, 140)
@@ -198,9 +304,9 @@ function applyState(data) {
     }
   }
 
-  if (typeof data.status === 'string') {
-    note.textContent = clean(data.status, 200)
-  }
+  if (localNote) note.textContent = localNote
+  else if (typeof data.status === 'string' && data.status) note.textContent = clean(data.status, 200)
+  else note.textContent = 'Phone is connected.'
 }
 
 function setSlider(input, value, channel) {
@@ -262,12 +368,6 @@ function clampLevel(value) {
   const n = Math.round(Number(value))
   if (!Number.isFinite(n)) return null
   return Math.min(150, Math.max(0, n))
-}
-
-function clampCount(value) {
-  const n = Math.round(Number(value))
-  if (!Number.isFinite(n)) return 0
-  return Math.min(999, Math.max(0, n))
 }
 
 function unit(value) {

@@ -17,7 +17,7 @@ The studio tab mixes the microphone with music playing on this computer and send
 
 ## The booth
 
-GitHub Pages only serves the files. There is no media server. The open studio tab is the mixer and the broadcaster. Leave it up on the computer that has the microphone.
+GitHub Pages only serves the files. There is no media server. The open studio tab is the mixer and the broadcaster. Leave it up. The microphone can be this computer, or the phone on the remote.
 
 Listeners and a guest caller join the same room, `live`, through [Trystero](https://github.com/dmotz/trystero) on Nostr (`js/config.js`). Nostr is how the browsers find each other. The audio is a direct WebRTC connection to the studio tab. Each listener connects to the studio, not to the other listeners.
 
@@ -33,7 +33,7 @@ Keep a single studio tab live. Listeners lock onto the first studio they hear.
 
 ## On the air
 
-Use Chrome or Edge on the computer that has the microphone and the music.
+Use Chrome or Edge on the computer that plays the music. The remote microphone works in Chrome or Safari on the phone.
 
 1. Open the studio.
 2. Turn on the microphone.
@@ -41,7 +41,7 @@ Use Chrome or Edge on the computer that has the microphone and the music.
 4. Go live. The badge turns from Off air to Live.
 5. Leave the studio tab open and the computer awake. While the tab is visible, the page asks the screen to stay on.
 
-Listeners open the radio page and press Listen. Sound starts only after that press. A small audience is the comfortable range, because each person connects directly to the studio tab. Someone who cannot make that direct connection hears nothing.
+Listeners open the radio page and press Listen. Sound starts only after that press. The page follows the studio that is actually sending, and lets go of one that stops answering. A small audience is the comfortable range, because each person connects directly to the studio tab. Someone who cannot make that direct connection hears nothing. The count of people who are hearing the show is on the studio only.
 
 The **Message** line is the host's line on the radio page, and the lock-screen title. The studio repeats it every few seconds while live.
 
@@ -65,15 +65,15 @@ The caller hears the station without their own microphone. Listeners hear the ca
 
 ## The remote
 
-The phone cannot capture the music. The laptop stays the booth. **Remote** in the studio shows the phone link (`remote.html`). It is the same link every time. Open it on the phone and keep it.
+The phone cannot capture the music. The laptop stays the booth. Open the studio, then open `remote.html` on the phone. It is the same address every time. Bookmark it.
 
-The phone joins a room the radio page does not use, so a listener cannot move the faders. It can go live, stop, move the microphone, music, and guest levels, run Speak, Play, and Auto, edit the message, and drop the caller. Meters and the listener count come from the laptop. Starting the music capture stays on the laptop, because the browser only shows that share dialog there. The phone can fade that music and stop it.
+The phone joins a room the radio page does not use, so a listener cannot move the faders. The studio joins that room when the studio page opens, so the phone connects on its own. Microphone, Speak, and Play on the phone use that phone's microphone and send it to the studio to mix. The phone can move the microphone, music, and guest levels, run Speak and Play, edit the message, and drop the caller. Going live, music capture, and Auto stay on the laptop. The listener count stays on the laptop.
 
-Refreshing the studio tab keeps the phone connected. Pressing **Remote** again shows the same link. Keep that tab open. While the link is up, or the station is live, the page asks the screen to stay on.
+Keep the studio tab open. While that tab is open, or the station is live, the page asks the screen to stay on.
 
 ## The room
 
-Listeners pick a name and a picture, then talk. The name Studio is reserved. The studio relays every message, and a person who joins receives the recent log, up to 40 messages. Join and leave lines show in the studio. Messages stay once they are sent. Chat is open only while the On Air light is on.
+Listeners pick a name and a picture, then talk. The name Studio is reserved. The studio relays every message, and a person who joins receives the recent log, up to 40 messages. Everyone in the chat can see who else is there. A heart, a thumbs-up, or a laugh can be added to a message. The studio can remove a message. Join and leave lines show in the studio. Messages stay once they are sent. Chat is open while the On Air light is on. If the connection blips, the log stays until the studio has been gone for a while.
 
 ## The pages
 
@@ -82,14 +82,14 @@ Listeners pick a name and a picture, then talk. The name Studio is reserved. The
 | `index.html` | The radio. The mark, Listen, the host's line, and chat. |
 | `studio.html` | The mix, the broadcast, the guest link, the remote link, and chat. |
 | `guest.html` | One caller, opened from the studio link. The full booth picture. |
-| `remote.html` | The phone booth. Faders and the message, aimed at the laptop. |
+| `remote.html` | The phone booth. Same address every time. Its microphone, the faders, and the message. |
 | `logo.jpg` | The host at the desk. Shown large on the caller page, small beside the titles. |
 | `js/config.js` | Shared room id and Trystero options. |
-| `js/deck.js` | The remote's room id. |
+| `js/deck.js` | The remote's room id. The studio joins it when the studio page opens. |
 | `js/studio.js` | Mix, fades, broadcast, the caller, and the remote. |
 | `js/listen.js` | Listener playback. |
 | `js/guest.js` | Caller playback and microphone. |
-| `js/remote.js` | Remote commands. The studio is the one that mixes. |
+| `js/remote.js` | Phone microphone and remote commands. The studio mixes. |
 | `js/chat.js` | Chat for the radio page and the studio. |
 
 `extension/` was built to fill a Now Playing field from the tab that is playing audio. The studio no longer has that field, so the extension does nothing.

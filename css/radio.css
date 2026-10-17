@@ -611,6 +611,31 @@ input[type="range"]::-moz-range-thumb {
   overflow-wrap: anywhere;
 }
 
+.chat-reacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chat-react {
+  padding: 2px 8px;
+  border: 2px solid #f3d2ae;
+  border-radius: 999px;
+  background: #fffaf3;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.chat-react[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--amber);
+  color: #fffaf3;
+}
+
+.chat-remove { margin-top: 6px; }
+
 .chat-compose {
   position: sticky;
   bottom: calc(8px + var(--keyboard, 0px) + env(safe-area-inset-bottom));
@@ -741,6 +766,8 @@ input[type="range"]::-moz-range-thumb {
 
 .remote .channel,
 .remote .mix-modes { margin-top: 16px; }
+
+.remote .mix-modes { grid-template-columns: 1fr 1fr; }
 
 .remote .studio-head .logo.logo-mark {
   width: 64px;

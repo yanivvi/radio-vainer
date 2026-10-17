@@ -23,14 +23,12 @@
       <img class="logo logo-mark" src="logo.jpg" alt="">
       <h1>Remote</h1>
     </div>
-    <p id="listeners" class="listeners"></p>
     <p id="note" class="note" role="status">Waiting for the studio tab.</p>
 
     <div id="deck" hidden>
-      <button id="go-live" class="tune" type="button" aria-pressed="false">Go live</button>
-
       <section class="channel">
         <button id="mic" class="channel-btn" type="button" aria-pressed="false">Microphone</button>
+        <p class="hint">This phone.</p>
         <canvas id="mic-meter" class="meter" aria-hidden="true"></canvas>
         <label class="fader">
           <span>Level <b class="level">100</b></span>
@@ -46,13 +44,11 @@
           <span>Level <b class="level">80</b></span>
           <input id="music-gain" type="range" min="0" max="150" value="80" aria-valuetext="80">
         </label>
-        <button id="music-stop" class="channel-btn" type="button" hidden>Stop music</button>
       </section>
 
       <div class="mix-modes">
         <button id="mode-speak" class="channel-btn fade-btn" type="button" aria-pressed="false">Speak</button>
         <button id="mode-play" class="channel-btn fade-btn" type="button" aria-pressed="false">Play</button>
-        <button id="mode-auto" class="channel-btn fade-btn" type="button" aria-pressed="false">Auto</button>
       </div>
 
       <section class="channel">
