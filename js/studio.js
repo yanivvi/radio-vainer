@@ -29,11 +29,6 @@ const guestMeter = document.querySelector('#guest-meter')
 const guestPlayer = document.querySelector('#guest-player')
 const guestGainInput = document.querySelector('#guest-gain')
 const guestDropBtn = document.querySelector('#guest-drop')
-const remoteInviteBtn = document.querySelector('#remote-invite')
-const remoteShare = document.querySelector('#remote-share')
-const remoteUrlInput = document.querySelector('#remote-url')
-const remoteCopyBtn = document.querySelector('#remote-copy')
-const remoteNote = document.querySelector('#remote-note')
 const statusEl = document.querySelector('#status')
 const listenersEl = document.querySelector('#listeners')
 
@@ -59,14 +54,11 @@ let heldCaller = null
 let guestStreamSource = null
 let guestGain = null
 let guestAnalyser = null
-let deckOn = false
 let deckRoom = null
 let deckAction = null
 let deckPeerId = null
 let deckPulse = 0
 const deckSample = new Uint8Array(1024)
-const deckStore = 'radio-vainer-deck'
-const deckWaiting = 'Open this link on your phone. This tab keeps the show.'
 let monitor = null
 let pulse
 let wakeLock
@@ -128,9 +120,7 @@ goLiveBtn.addEventListener('click', () => {
 
 guestInviteBtn.addEventListener('click', createCallLink)
 guestCopyBtn.addEventListener('click', () => copyLink(guestUrlInput, guestCopyBtn))
-remoteInviteBtn.addEventListener('click', () => { createDeckLink() })
 window.addEventListener('pointerdown', () => { unlockAudio() })
-remoteCopyBtn.addEventListener('click', () => copyLink(remoteUrlInput, remoteCopyBtn))
 guestDropBtn.addEventListener('click', () => releaseGuest(true))
 guestGainInput.addEventListener('input', () => {
   showLevel(guestGainInput)
@@ -140,7 +130,7 @@ showLevel(guestGainInput)
 pinComposer(document.querySelector('#studio-chat-form'))
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && (room || deckOn)) keepAwake()
+  if (document.visibilityState === 'visible' && (room || deckRoom)) keepAwake()
 })
 
 window.addEventListener('pagehide', release)
@@ -725,32 +715,13 @@ function copyLink(input, button) {
   }
 }
 
-function createDeckLink() {
-  unlockAudio()
-  showDeckLink()
-  joinDeck()
-}
-
-function showDeckLink() {
-  const url = new URL('remote.html', location.href)
-  url.search = ''
-  url.hash = ''
-  remoteUrlInput.value = url.href
-  remoteShare.hidden = false
-  remoteInviteBtn.setAttribute('aria-pressed', 'true')
-  remoteCopyBtn.textContent = 'Copy'
-  keepAwake()
-}
-
 // The phone talks on its own room. Listeners never join it,
-// and the studio can answer before it goes live.
+// and the studio answers as soon as this tab is open, even before it goes live.
 function joinDeck() {
   if (deckRoom) return
-  deckOn = true
-  try { sessionStorage.setItem(deckStore, '1') } catch { /* private mode */ }
   deckRoom = joinRoom(roomOptions(), deckRoomId, {
     onJoinError() {
-      remoteNote.textContent = 'The remote link could not connect. Press Remote again.'
+      setStatus('The remote could not connect. Refresh the studio.')
     }
   })
   deckAction = deckRoom.makeAction(deckActionName)
@@ -759,7 +730,6 @@ function joinDeck() {
     if (peerId !== deckPeerId) return
     clearDeckPeer()
   }
-  remoteNote.textContent = deckWaiting
   keepAwake()
 }
 
@@ -777,7 +747,6 @@ function clearDeckPeer() {
   deckPeerId = null
   window.clearInterval(deckPulse)
   deckPulse = 0
-  if (deckOn) remoteNote.textContent = deckWaiting
 }
 
 function onDeckMessage(data, peerId) {
@@ -789,10 +758,7 @@ function onDeckMessage(data, peerId) {
     }
     const fresh = deckPeerId !== peerId
     deckPeerId = peerId
-    if (fresh) {
-      remoteNote.textContent = 'Phone is connected.'
-      startDeckPulse()
-    }
+    if (fresh) startDeckPulse()
     sendDeckState()
     return
   }
@@ -905,14 +871,6 @@ function clampLevel(value) {
   const n = Math.round(Number(value))
   if (!Number.isFinite(n)) return null
   return Math.min(150, Math.max(0, n))
-}
-
-function restoreDeck() {
-  let saved = ''
-  try { saved = sessionStorage.getItem(deckStore) || '' } catch { return }
-  if (!saved) return
-  showDeckLink()
-  joinDeck()
 }
 
 function wait(ms) {
@@ -1041,4 +999,4 @@ function release() {
   audioCtx?.close()
 }
 
-restoreDeck()
+joinDeck()
