@@ -27,6 +27,8 @@
       <span id="air" class="air off">Off air</span>
       <p id="listeners" class="listeners"></p>
       <button id="go-live" class="tune" type="button" aria-pressed="false">Go live</button>
+      <button id="phones" class="channel-btn phones" type="button" aria-pressed="true">Headphones</button>
+      <p class="hint phones-hint">Headphones play the mix on this computer. Turn them off if this microphone can hear the speakers.</p>
     </div>
 
     <div class="channels">
@@ -85,6 +87,11 @@
       </section>
     </div>
 
+    <label class="title-field">
+      <span>Password</span>
+      <input id="password" type="password" autocomplete="current-password" spellcheck="false">
+    </label>
+    <p class="hint">The station server password. A new server uses changeme.</p>
     <label class="title-field">
       <span>Message</span>
       <input id="message" type="text" maxlength="140" placeholder="A line for listeners" autocomplete="off">

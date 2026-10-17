@@ -1,9 +1,13 @@
+import { castMime, openCast } from './cast.js'
 import { mountStudioChat } from './chat.js'
+import { harborUrl, joinRoom, roomId, roomOptions, sourceUser } from './config.js'
 import { deckActionName, deckRoomId } from './deck.js'
-import { joinRoom, roomId, roomOptions } from './config.js'
+import { readMount } from './stream.js'
 
 const air = document.querySelector('#air')
 const goLiveBtn = document.querySelector('#go-live')
+const phonesBtn = document.querySelector('#phones')
+const passwordInput = document.querySelector('#password')
 const micBtn = document.querySelector('#mic')
 const musicBtn = document.querySelector('#music')
 const micGainInput = document.querySelector('#mic-gain')
@@ -34,6 +38,7 @@ const listenersEl = document.querySelector('#listeners')
 
 let audioCtx
 let destination
+let phones
 let clockSource
 let micStream
 let micSource
@@ -63,8 +68,13 @@ let deviceMicStream = null
 let deviceMicSource = null
 let heldDeviceMic = null
 let meterPulse = 0
-let presenceAction = null
-const hearing = new Set()
+let cast = null
+let onAir = false
+let castRetries = 0
+let listenerPoll = 0
+let quietPolls = 0
+const PASSWORD_KEY = 'radio-vainer-password'
+const PHONES_KEY = 'radio-vainer-phones'
 const deckSample = new Uint8Array(1024)
 const deckWaiting = 'Open this page on your phone.'
 let monitor = null
@@ -116,13 +126,23 @@ playBtn.addEventListener('click', () => { play() })
 autoBtn.addEventListener('click', () => { setAuto(!autoOn) })
 
 messageInput.addEventListener('input', () => {
-  if (room) publish()
+  if (onAir) publish()
   sendDeckState()
+})
+
+const savedPassword = localStorage.getItem(PASSWORD_KEY)
+if (savedPassword) passwordInput.value = savedPassword
+if (localStorage.getItem(PHONES_KEY) === '0') {
+  phonesBtn.setAttribute('aria-pressed', 'false')
+}
+
+phonesBtn.addEventListener('click', () => {
+  setPhones(phonesBtn.getAttribute('aria-pressed') !== 'true')
 })
 
 goLiveBtn.addEventListener('click', () => {
   unlockAudio()
-  if (room) stopBroadcast()
+  if (onAir) stopBroadcast()
   else startBroadcast()
 })
 
@@ -139,7 +159,7 @@ showLevel(guestGainInput)
 pinComposer(document.querySelector('#studio-chat-form'))
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && (room || deckOn)) keepAwake()
+  if (document.visibilityState === 'visible' && (onAir || deckOn)) keepAwake()
 })
 
 window.addEventListener('pagehide', release)
@@ -198,12 +218,25 @@ async function runningAudio() {
   return true
 }
 
+function phonesWanted() {
+  return phonesBtn.getAttribute('aria-pressed') === 'true'
+}
+
+function setPhones(on) {
+  phonesBtn.setAttribute('aria-pressed', on ? 'true' : 'false')
+  localStorage.setItem(PHONES_KEY, on ? '1' : '0')
+  if (phones) phones.gain.value = on ? 1 : 0
+}
+
 function ensureGraph() {
   if (audioCtx) return
   audioCtx = new AudioContext()
   destination = audioCtx.createMediaStreamDestination()
+  phones = audioCtx.createGain()
+  phones.gain.value = phonesWanted() ? 1 : 0
+  phones.connect(audioCtx.destination)
   // Chrome does not render this destination track until a source is connected,
-  // so WebRTC would send a dead track. Silence keeps the track rendering.
+  // so the encoder would send a dead track. Silence keeps the track rendering.
   clockSource = audioCtx.createConstantSource()
   clockSource.offset.value = 0
   clockSource.connect(destination)
@@ -261,6 +294,7 @@ function ensureMicBus() {
   voiceAnalyser.fftSize = 1024
   micGain.connect(destination)
   micGain.connect(monitor)
+  micGain.connect(phones)
   micGain.connect(micAnalyser)
 }
 
@@ -328,6 +362,7 @@ async function startMusic() {
   musicSource.connect(musicGain)
   musicGain.connect(destination)
   musicGain.connect(monitor)
+  musicGain.connect(phones)
   musicGain.connect(musicAnalyser)
   musicBtn.setAttribute('aria-pressed', 'true')
   setStatus('Music is in the mix. Listeners do not see the screen.')
@@ -376,46 +411,120 @@ async function captureSystemAudio() {
   throw lastError
 }
 
+function hostLine() {
+  return messageInput.value.trim().slice(0, 140)
+}
+
+function beginCast(epoch) {
+  const mime = castMime()
+  if (!mime) return null
+  const next = openCast({
+    url: harborUrl(),
+    user: sourceUser,
+    password: passwordInput.value,
+    stream: destination.stream,
+    mime,
+    sampleRate: audioCtx.sampleRate,
+    onClose() {
+      if (epoch !== broadcastEpoch || !onAir) return
+      lostCast(epoch)
+    }
+  })
+  return next
+}
+
+function lostCast(epoch) {
+  if (epoch !== broadcastEpoch || !onAir || starting) return
+  castRetries += 1
+  if (castRetries > 2) {
+    stopBroadcast('The station server dropped the show.')
+    return
+  }
+  setStatus('Reconnecting the show.')
+  const previous = cast
+  cast = null
+  previous?.stop()
+  const next = beginCast(epoch)
+  if (!next) {
+    stopBroadcast('Open the studio in Chrome or Edge to send the show.')
+    return
+  }
+  cast = next
+  next.ready.then(() => {
+    if (epoch !== broadcastEpoch) return
+    castRetries = 0
+    next.setTitle(hostLine())
+    setStatus('')
+  }).catch(() => {
+    if (epoch !== broadcastEpoch) return
+    lostCast(epoch)
+  })
+}
+
 async function startBroadcast() {
-  if (room || starting) return
+  if (onAir || starting) return
+  const password = passwordInput.value
+  if (!password) {
+    setStatus('Enter the station password. A new server uses changeme.')
+    passwordInput.focus()
+    return
+  }
+  localStorage.setItem(PASSWORD_KEY, password)
   starting = true
   const epoch = broadcastEpoch
   try {
     ensureGraph()
     unlockGuestPlayer()
     if (!await runningAudio()) return
-    if (epoch !== broadcastEpoch || room) return
+    if (epoch !== broadcastEpoch || onAir) return
+    const mime = castMime()
+    if (!mime) {
+      setStatus('Open the studio in Chrome or Edge to send the show.')
+      return
+    }
+    castRetries = 0
+    quietPolls = 0
+    cast = beginCast(epoch)
+    try {
+      await cast.ready
+    } catch (err) {
+      cast?.stop()
+      cast = null
+      if (err?.message === 'encode') {
+        setStatus('This browser could not encode the show. Open the studio in Chrome or Edge.')
+      } else if (err?.message === 'refused') {
+        setStatus('The station refused that password.')
+      } else {
+        setStatus('The station server is not reachable. Start it, then go live again.')
+      }
+      return
+    }
+    if (epoch !== broadcastEpoch) {
+      cast?.stop()
+      cast = null
+      return
+    }
+    onAir = true
+    cast.setTitle(hostLine())
     room = joinRoom(roomOptions(), roomId, {
       onJoinError() {
-        setStatus('The studio could not connect. Refresh and go live again.')
+        setStatus('Chat could not connect. The show is still on the stream.')
       }
     })
     statusAction = room.makeAction('status')
-    presenceAction = room.makeAction('presence')
-    presenceAction.onMessage = (data, { peerId }) => {
-      if (!data || data.kind !== 'hearing' || peerId === guestPeerId) return
-      if (data.on === true) hearing.add(peerId)
-      else hearing.delete(peerId)
-      showListeners()
-    }
     callerAction = room.makeAction('caller')
     callerAction.onMessage = (data, { peerId }) => {
       if (!data) return
       if (data.kind === 'hello') acceptCaller(peerId, data)
       else if (data.kind === 'bye' && peerId === guestPeerId) releaseGuest(false)
     }
-    const output = destination.stream
-
     room.onPeerJoin = (peerId) => {
       if (peerId === guestPeerId) sendCallerReturn(peerId)
-      else room.addStream(output, { target: peerId, metadata: { role: 'station' } })
       publish(peerId)
     }
     room.onPeerLeave = (peerId) => {
-      hearing.delete(peerId)
       if (peerId === guestPeerId) releaseGuest(false)
       studioChat.peerLeft(peerId)
-      showListeners()
       publish()
     }
     room.onPeerStream = (stream, peerId, metadata) => {
@@ -427,7 +536,6 @@ async function startBroadcast() {
       }
       mixCaller(stream)
     }
-    room.addStream(output, { metadata: { role: 'station' } })
     studioChat.attach(room)
 
     goLiveBtn.textContent = 'Stop broadcast'
@@ -435,12 +543,14 @@ async function startBroadcast() {
     setOnAir(true)
     publish()
     pulse = window.setInterval(() => publish(), 3000)
+    listenerPoll = window.setInterval(pollListeners, 3000)
+    pollListeners()
     keepAwake()
     document.title = '● On air · Radio Vainer'
     if (callCode && !guestPeerId) {
       guestNote.textContent = 'Send this link to one caller.'
     }
-    if (!micStream && !displayStream) {
+    if (!micStream && !displayStream && !deviceMicSource) {
       setStatus('You are live. Turn on the microphone or capture music so there is something to hear.')
     }
   } finally {
@@ -448,10 +558,18 @@ async function startBroadcast() {
   }
 }
 
-async function stopBroadcast() {
+async function stopBroadcast(reason) {
   broadcastEpoch += 1
+  onAir = false
+  castRetries = 0
+  quietPolls = 0
   window.clearInterval(pulse)
+  window.clearInterval(listenerPoll)
   pulse = null
+  listenerPoll = 0
+  const current = cast
+  cast = null
+  current?.stop()
   try {
     await statusAction?.send({ role: 'host', live: false, title: '', message: '' })
   } catch {
@@ -459,11 +577,9 @@ async function stopBroadcast() {
   }
   studioChat.detach()
   releaseGuest(false)
-  hearing.clear()
   room?.leave()
   room = null
   statusAction = null
-  presenceAction = null
   callerAction = null
   wakeLock?.release?.().catch(() => {})
   wakeLock = null
@@ -472,34 +588,44 @@ async function stopBroadcast() {
   setOnAir(false)
   listenersEl.textContent = ''
   document.title = 'Studio · Radio Vainer'
-  setStatus('Broadcast stopped.')
+  setStatus(typeof reason === 'string' && reason ? reason : 'Broadcast stopped.')
   sendDeckState()
 }
 
-function publish(target) {
-  if (!statusAction || !room) return
-  const payload = {
-    role: 'host',
-    live: true,
-    title: '',
-    message: messageInput.value.trim().slice(0, 140)
-  }
-  const options = target ? { target } : undefined
-  statusAction.send(payload, options).catch(() => {})
-  showListeners()
-}
-
-function showListeners() {
-  if (!room) {
-    listenersEl.textContent = ''
+async function pollListeners() {
+  if (!onAir) return
+  let mount = null
+  try {
+    mount = await readMount()
+  } catch {
     return
   }
-  const count = hearing.size
+  if (!mount) {
+    quietPolls += 1
+    if (quietPolls === 5) {
+      setStatus('The show is connected, and the public stream is not up yet.')
+    }
+    return
+  }
+  quietPolls = 0
+  if (statusEl.textContent === 'The show is connected, and the public stream is not up yet.') {
+    setStatus('')
+  }
+  const count = Number(mount.listeners) || 0
   listenersEl.textContent = count === 0
     ? 'No listeners yet'
     : count === 1
       ? '1 listening'
       : `${count} listening`
+}
+
+function publish(target) {
+  const message = hostLine()
+  cast?.setTitle(message)
+  if (!statusAction || !room) return
+  const payload = { role: 'host', live: true, title: '', message }
+  const options = target ? { target } : undefined
+  statusAction.send(payload, options).catch(() => {})
 }
 
 function setOnAir(on) {
@@ -1097,7 +1223,7 @@ function ensureGuestBus() {
   guestAnalyser = audioCtx.createAnalyser()
   guestAnalyser.fftSize = 1024
   guestGain.connect(destination)
-  guestGain.connect(audioCtx.destination)
+  guestGain.connect(phones)
   guestGain.connect(guestAnalyser)
 }
 
@@ -1163,8 +1289,13 @@ function releaseGuest(tellCaller) {
 
 function release() {
   broadcastEpoch += 1
+  onAir = false
+  const current = cast
+  cast = null
+  current?.stop()
   leaveDeck()
   window.clearInterval(pulse)
+  window.clearInterval(listenerPoll)
   cancelAnimationFrame(raf)
   micFade.hold(Number(micGainInput.value))
   musicFade.hold(Number(musicGainInput.value))

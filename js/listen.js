@@ -1,5 +1,6 @@
 import { mountListenerChat } from './chat.js'
-import { joinRoom, roomId, roomOptions } from './config.js'
+import { joinRoom, roomId, roomOptions, streamPath } from './config.js'
+import { readMount } from './stream.js'
 
 const HOST_STALE_MS = 12000
 
@@ -12,32 +13,26 @@ const canvas = document.querySelector('#scope')
 const player = document.querySelector('#player')
 player.playsInline = true
 player.volume = 1
+player.preload = 'none'
 
 let audioCtx
 let analyser
 let sourceNode
 let meterStream
-let pendingStream
-let playingStream
 let hostId = null
 let lastHostBeat = 0
 let armed = false
 let ignorePause = false
+let streamOn = false
+let suppressError = false
 let raf = 0
-let hearingTimer = 0
-
-const streams = new Map()
 
 if ('mediaSession' in navigator) {
   navigator.mediaSession.setActionHandler('play', () => { startListening() })
   navigator.mediaSession.setActionHandler('pause', () => { stopListening() })
 }
 
-const room = joinRoom(roomOptions({ passive: true }), roomId, {
-  onJoinError() {
-    note.textContent = 'Could not reach the studio. Refresh and try again.'
-  }
-})
+const room = joinRoom(roomOptions({ passive: true }), roomId)
 
 const chat = mountListenerChat({
   room,
@@ -48,43 +43,30 @@ const chat = mountListenerChat({
 })
 
 const status = room.makeAction('status')
-const presence = room.makeAction('presence')
 
 status.onMessage = (data, { peerId }) => {
   if (!data || data.role !== 'host') return
   if (!data.live) {
-    if (peerId === hostId) goOffAir(true)
+    if (peerId === hostId) leaveChat(true)
     return
   }
   if (!acceptHost(peerId, true)) return
-  showLive(data)
-  const saved = streams.get(peerId)
-  if (!saved) return
-  pendingStream = saved
-  if (armed) playStream(saved).catch(() => askToListen())
+  if (data.message) showMessage(data.message)
+  chat.hostHere()
 }
 
 room.onPeerLeave = (peerId) => {
-  streams.delete(peerId)
-  if (peerId === hostId) goOffAir(false)
-}
-
-room.onPeerStream = (stream, peerId, metadata) => {
-  if (metadata?.role !== 'station') return
-  if (!stream.getAudioTracks().length) return
-  streams.set(peerId, stream)
-  if (!acceptHost(peerId, true)) return
-  pendingStream = stream
-  markLive()
-  if (armed) playStream(stream).catch(() => askToListen())
-  chat.hostHere()
+  if (peerId === hostId) leaveChat(false)
 }
 
 window.setInterval(() => {
   if (!hostId) return
   if (Date.now() - lastHostBeat < HOST_STALE_MS) return
-  goOffAir(false)
+  leaveChat(false)
 }, 2000)
+
+window.setInterval(watchStream, 3000)
+watchStream()
 
 listenBtn.addEventListener('click', () => {
   if (armed) stopListening()
@@ -92,8 +74,24 @@ listenBtn.addEventListener('click', () => {
 })
 
 player.addEventListener('pause', () => {
-  if (ignorePause || !armed) return
+  if (ignorePause || !armed || player.error) return
   stopListening()
+})
+
+player.addEventListener('error', () => {
+  if (!armed || suppressError) return
+  releaseMeter()
+  window.setTimeout(() => {
+    if (!armed || !player.paused) return
+    if (!streamOn) {
+      armed = false
+      listenBtn.textContent = 'Listen'
+      note.textContent = 'The studio is off air.'
+      publishSession('paused')
+      return
+    }
+    playMount().catch(() => askToListen())
+  }, 1000)
 })
 
 function acceptHost(peerId, beat) {
@@ -105,19 +103,20 @@ function acceptHost(peerId, beat) {
   return true
 }
 
-async function startListening() {
+function startListening() {
   armed = true
   listenBtn.textContent = 'Pause'
-  if (!pendingStream) {
-    note.textContent = 'Tuning in. Sound starts when the studio is live.'
+  // play() has to start in this click. Waiting on the status poll loses it.
+  playMount().catch(() => {
+    if (streamOn) {
+      askToListen()
+      return
+    }
+    armed = false
+    listenBtn.textContent = 'Listen'
+    note.textContent = 'The studio is off air.'
     publishSession('paused')
-    return
-  }
-  try {
-    await playStream(pendingStream)
-  } catch {
-    askToListen()
-  }
+  })
 }
 
 function stopListening() {
@@ -129,7 +128,8 @@ function stopListening() {
   stopDraw()
   releaseMeter()
   audioCtx?.suspend()
-  watchHearing(false)
+  player.removeAttribute('src')
+  player.load()
   note.textContent = ''
 }
 
@@ -138,56 +138,39 @@ function ensureAudio() {
   audioCtx = new AudioContext()
   analyser = audioCtx.createAnalyser()
   analyser.fftSize = 256
-  // The meter must not reach the speakers. The audio element is the only
-  // output, so the phone keeps this playing when the screen locks.
-  const silent = audioCtx.createGain()
-  silent.gain.value = 0
-  analyser.connect(silent)
-  silent.connect(audioCtx.destination)
   return audioCtx
 }
 
-async function playStream(stream) {
-  pendingStream = stream
+async function playMount() {
+  suppressError = false
+  const next = new URL(streamPath, location.href)
+  next.searchParams.set('t', String(Date.now()))
   player.muted = false
   player.volume = 1
-  if (player.srcObject === stream && !player.paused) {
-    if (playingStream !== stream) {
-      try {
-        attachMeter(stream)
-        if (analyser) draw()
-      } catch {
-        // The station still plays if the meter cannot attach.
-      }
-    }
-    return
-  }
-  if (player.srcObject !== stream) player.srcObject = stream
+  player.src = next.href
   await player.play()
   publishSession('playing')
-  watchHearing(true)
+  note.textContent = ''
   try {
     ensureAudio()
     await audioCtx.resume()
-    attachMeter(stream)
+    attachMeter()
     if (analyser) draw()
   } catch {
     // The station still plays if the meter cannot attach.
   }
-  note.textContent = ''
 }
 
-function attachMeter(stream) {
+function attachMeter() {
   ensureAudio()
   audioCtx.resume().catch(() => {})
-  if (playingStream === stream && sourceNode) return
-  releaseMeter()
+  if (sourceNode) return
+  if (typeof player.captureStream !== 'function') return
   try {
-    // A clone keeps the audible stream on the element alone.
-    meterStream = stream.clone()
+    // The element keeps playing on its own, including with the screen locked.
+    meterStream = player.captureStream()
     sourceNode = audioCtx.createMediaStreamSource(meterStream)
     sourceNode.connect(analyser)
-    playingStream = stream
   } catch {
     releaseMeter()
   }
@@ -198,17 +181,27 @@ function releaseMeter() {
   sourceNode = null
   meterStream?.getTracks().forEach((track) => track.stop())
   meterStream = null
-  playingStream = null
 }
 
-function watchHearing(on) {
-  window.clearInterval(hearingTimer)
-  hearingTimer = 0
-  presence.send({ kind: 'hearing', on: !!on }).catch(() => {})
-  if (!on) return
-  hearingTimer = window.setInterval(() => {
-    presence.send({ kind: 'hearing', on: true }).catch(() => {})
-  }, 5000)
+async function watchStream() {
+  let mount = null
+  try {
+    mount = await readMount()
+  } catch {
+    mount = null
+  }
+  const live = Boolean(mount)
+  const becameLive = live && !streamOn
+  if (live) {
+    markLive()
+    if (mount.title) showMessage(hostLineFromTitle(mount.title))
+    if (!armed && note.textContent === 'The studio is off air.') note.textContent = ''
+    if (becameLive && armed && player.paused) playMount().catch(() => askToListen())
+  } else if (streamOn) {
+    showOff()
+  }
+  streamOn = live
+  return live
 }
 
 function publishSession(state) {
@@ -241,29 +234,30 @@ function markLive() {
   document.title = '● Radio Vainer'
 }
 
-function showLive(data) {
-  markLive()
-  const message = String(data.message || '').trim().slice(0, 140)
+function hostLineFromTitle(title) {
+  const text = String(title || '').trim().replace(/^Radio Vainer\s+--?\s+/, '')
+  return text === 'Radio Vainer' ? '' : text
+}
+
+function showMessage(text) {
+  const message = String(text || '').trim().slice(0, 140)
   hostMessage.textContent = message
   hostMessage.hidden = message.length === 0
   if (!player.paused) publishSession('playing')
-  chat.hostHere()
 }
 
-function goOffAir(immediateChat) {
-  hostId = null
-  lastHostBeat = 0
-  pendingStream = null
+function showOff() {
+  suppressError = true
   ignorePause = true
   player.pause()
   ignorePause = false
-  player.srcObject = null
+  player.removeAttribute('src')
+  player.load()
   publishSession('none')
   audioCtx?.suspend()
   releaseMeter()
   stopDraw()
   clearScope()
-  watchHearing(false)
   air.textContent = 'Off air'
   air.classList.add('off')
   air.classList.remove('on')
@@ -271,7 +265,12 @@ function goOffAir(immediateChat) {
   hostMessage.hidden = true
   if (armed) note.textContent = 'The studio stopped. This will play again when it returns.'
   document.title = 'Radio Vainer'
-  chat.hostLeft(immediateChat)
+}
+
+function leaveChat(immediate) {
+  hostId = null
+  lastHostBeat = 0
+  chat.hostLeft(immediate)
 }
 
 function draw() {

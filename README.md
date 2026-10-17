@@ -9,17 +9,25 @@
 
 The picture on the site is the booth: one host, a microphone, music on the desk, and the On Air light. The pages are that booth. Warm paper, amber buttons, a small mark of the same picture beside the title.
 
-The studio tab mixes the microphone with music playing on this computer and sends that mix straight to whoever is listening. The picture from screen share is never sent. Listeners only hear the show.
+The studio tab mixes the microphone with music playing on this computer. That mix is encoded once and sent to the station server. Listeners hear the Icecast stream. The picture from screen share is never sent.
 
-**Listen:** https://yanivvi.github.io/radio-vainer/
+## The server
 
-**Studio:** https://yanivvi.github.io/radio-vainer/studio.html
+The pages are static. The sound is [Liquidsoap](https://www.liquidsoap.info/) and [Icecast](https://icecast.org/). From `server/`:
+
+```
+docker compose up
+```
+
+Open http://localhost:8080/ for the radio and http://localhost:8080/studio.html for the booth. The server password starts as `changeme`. Change it by copying `server/.env.example` to `server/.env` and setting `SOURCE_PASSWORD` to letters, numbers, and hyphens. The studio asks for that password and remembers it on this computer.
+
+Liquidsoap takes the studio mix on a webcast socket and sends MP3 to Icecast. When the studio stops, the public stream stops. Listeners use the normal stream address `/stream/radio-vainer`.
 
 ## The booth
 
-GitHub Pages only serves the files. There is no media server. The open studio tab is the mixer and the broadcaster. Leave it up. The microphone can be this computer, or the phone on the remote.
+Leave the studio tab up. The microphone can be this computer, or the phone on the remote. Headphones on this computer play the mix while you run the show. The stream the audience hears is a couple of seconds later, so cue from the headphones.
 
-Listeners and a guest caller join the same room, `live`, through [Trystero](https://github.com/dmotz/trystero) on Nostr (`js/config.js`). Nostr is how the browsers find each other. The audio is a direct WebRTC connection to the studio tab. Each listener connects to the studio, not to the other listeners.
+Chat and the guest caller still use [Trystero](https://github.com/dmotz/trystero) on Nostr (`js/config.js`). That room is how the browsers find each other for chat and for the one caller. The audience audio does not go through it.
 
 The studio builds one mix and sends that stream out:
 
@@ -29,21 +37,23 @@ The studio builds one mix and sends that stream out:
 
 A full fade from one end of a slider to the other takes about three seconds. The microphone sits a little hotter than the music. Levels can go past 100.
 
-Keep a single studio tab live. Listeners lock onto the first studio they hear.
+Keep a single studio tab live.
 
 ## On the air
 
 Use Chrome or Edge on the computer that plays the music. The remote microphone works in Chrome or Safari on the phone.
 
-1. Open the studio.
-2. Turn on the microphone.
-3. Capture music. Choose **Entire Screen** and turn on **Share system audio**. If the music is a browser tab, share that tab and its audio instead.
-4. Go live. The badge turns from Off air to Live.
-5. Leave the studio tab open and the computer awake. While the tab is visible, the page asks the screen to stay on.
+1. Start the station server, then open the studio on that server.
+2. Enter the station password.
+3. Turn on the microphone.
+4. Capture music. Choose **Entire Screen** and turn on **Share system audio**. If the music is a browser tab, share that tab and its audio instead.
+5. Leave **Headphones** on and wear headphones. They play the mix on this computer.
+6. Go live. The badge turns from Off air to Live.
+7. Leave the studio tab open and the computer awake. While the tab is visible, the page asks the screen to stay on.
 
-Listeners open the radio page and press Listen. Sound starts only after that press. The page follows the studio that is actually sending, and lets go of one that stops answering. A small audience is the comfortable range, because each person connects directly to the studio tab. Someone who cannot make that direct connection hears nothing. The count of people who are hearing the show is on the studio only.
+Listeners open the radio page and press Listen. Sound starts only after that press. The page follows the Icecast stream, and lets go when the studio stops. The count of people on that stream is on the studio.
 
-The **Message** line is the host's line on the radio page, and the lock-screen title. The studio repeats it every few seconds while live.
+The **Message** line is the host's line on the radio page, and the lock-screen title. The studio sends it with the stream while live.
 
 ## Speak, Play, and Auto
 
@@ -84,10 +94,13 @@ Listeners pick a name and a picture, then talk. The name Studio is reserved. The
 | `guest.html` | One caller, opened from the studio link. The full booth picture. |
 | `remote.html` | The phone booth. Same address every time. Its microphone, the faders, and the message. |
 | `logo.jpg` | The host at the desk. Shown large on the caller page, small beside the titles. |
-| `js/config.js` | Shared room id and Trystero options. |
+| `js/config.js` | Room id, stream paths, and Trystero options. |
+| `js/cast.js` | Sends the mix to Liquidsoap with the webcast protocol. |
+| `js/stream.js` | Reads who is listening from Icecast. |
 | `js/deck.js` | The remote's room id. The studio joins it when the studio page opens. |
-| `js/studio.js` | Mix, fades, broadcast, the caller, and the remote. |
-| `js/listen.js` | Listener playback. |
+| `js/studio.js` | Mix, fades, broadcast, headphones, the caller, and the remote. |
+| `js/listen.js` | Listener playback of the Icecast stream. |
+| `server/` | Liquidsoap, Icecast, and the page server. |
 | `js/guest.js` | Caller playback and microphone. |
 | `js/remote.js` | Phone microphone and remote commands. The studio mixes. |
 | `js/chat.js` | Chat for the radio page and the studio. |

@@ -1,0 +1,26 @@
+:80 {
+	handle /server/* {
+		respond 404
+	}
+
+	handle /.git* {
+		respond 404
+	}
+
+	handle /harbor/* {
+		uri strip_prefix /harbor
+		reverse_proxy liquidsoap:8001
+	}
+
+	handle /stream/* {
+		uri strip_prefix /stream
+		reverse_proxy icecast:8000 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		root * /srv
+		file_server
+	}
+}
