@@ -32,15 +32,12 @@
     <div class="channels">
       <section class="channel">
         <button id="mic" class="channel-btn" type="button" aria-pressed="false">Microphone</button>
+        <p id="mic-source" class="hint" hidden>From the phone.</p>
         <canvas id="mic-meter" class="meter" aria-hidden="true"></canvas>
         <label class="fader">
           <span>Level <b class="level">100</b></span>
           <input id="mic-gain" type="range" min="0" max="150" value="100" aria-valuetext="100">
         </label>
-        <div class="fades">
-          <button id="mic-fade-in" class="channel-btn fade-btn" type="button">Fade in</button>
-          <button id="mic-fade-out" class="channel-btn fade-btn" type="button">Fade out</button>
-        </div>
       </section>
 
       <section class="channel">
@@ -50,10 +47,6 @@
           <span>Level <b class="level">80</b></span>
           <input id="music-gain" type="range" min="0" max="150" value="80" aria-valuetext="80">
         </label>
-        <div class="fades">
-          <button id="music-fade-in" class="channel-btn fade-btn" type="button">Fade in</button>
-          <button id="music-fade-out" class="channel-btn fade-btn" type="button">Fade out</button>
-        </div>
       </section>
 
       <div class="mix-modes">
@@ -82,11 +75,11 @@
       </section>
 
       <section class="channel remote-channel">
-        <button id="remote-invite" class="channel-btn" type="button" aria-pressed="false">Remote</button>
-        <p class="hint">Open the booth on a phone. Music capture stays on this computer.</p>
-        <div id="remote-share" class="guest-share" hidden>
+        <h2>Remote</h2>
+        <p class="hint">Open this address on your phone. The microphone is that phone. Music capture stays on this computer.</p>
+        <audio id="device-mic" playsinline></audio>
+        <div class="guest-share">
           <input id="remote-url" type="text" readonly value="" aria-label="Remote link">
-          <button id="remote-copy" class="channel-btn" type="button">Copy</button>
         </div>
         <p id="remote-note" class="note"></p>
       </section>

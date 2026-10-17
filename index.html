@@ -29,7 +29,6 @@
     <button id="listen" class="tune" type="button">Listen</button>
     <canvas id="scope" class="scope" aria-hidden="true"></canvas>
 
-    <p id="count" class="listeners"></p>
     <p id="note" class="note" role="status"></p>
 
     <section class="chat" aria-labelledby="chat-label">
@@ -51,6 +50,10 @@
       </form>
       <div id="chat-live" hidden>
         <p class="chat-you">Talking as <span id="chat-you-picture" class="chat-picture"></span><strong id="chat-you"></strong></p>
+        <div class="chat-people">
+          <h3>In the chat</h3>
+          <div id="chat-people"></div>
+        </div>
         <div id="chat-scroll" class="chat-scroll">
           <p id="chat-empty" class="chat-empty">No messages yet.</p>
           <ol id="chat-log" class="chat-log" role="log"></ol>
