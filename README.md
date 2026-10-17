@@ -65,11 +65,11 @@ The caller hears the station without their own microphone. Listeners hear the ca
 
 ## The remote
 
-The phone cannot capture the music. The laptop stays the booth. **Remote** in the studio shows the phone link (`remote.html`). It is the same link every time. Open it on the phone and keep it.
+The phone cannot capture the music. The laptop stays the booth. Open `remote.html` on the phone. The studio is listening for that page as soon as the studio tab is open, before or after it goes live. The link never changes.
 
 The phone joins a room the radio page does not use, so a listener cannot move the faders. It can go live, stop, move the microphone, music, and guest levels, run Speak, Play, and Auto, edit the message, and drop the caller. Meters and the listener count come from the laptop. Starting the music capture stays on the laptop, because the browser only shows that share dialog there. The phone can fade that music and stop it.
 
-Refreshing the studio tab keeps the phone connected. Pressing **Remote** again shows the same link. Keep that tab open. While the link is up, or the station is live, the page asks the screen to stay on.
+Keep the studio tab open. Refreshing it keeps the phone connected. While that tab is open, or the station is live, the page asks the screen to stay on.
 
 ## The room
 
@@ -80,7 +80,7 @@ Listeners pick a name and a picture, then talk. The name Studio is reserved. The
 | Page | On the desk |
 | --- | --- |
 | `index.html` | The radio. The mark, Listen, the host's line, and chat. |
-| `studio.html` | The mix, the broadcast, the guest link, the remote link, and chat. |
+| `studio.html` | The mix, the broadcast, the guest link, and chat. The phone remote is already on. |
 | `guest.html` | One caller, opened from the studio link. The full booth picture. |
 | `remote.html` | The phone booth. Faders and the message, aimed at the laptop. |
 | `logo.jpg` | The host at the desk. Shown large on the caller page, small beside the titles. |

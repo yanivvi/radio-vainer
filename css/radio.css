@@ -262,7 +262,6 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .guest-channel,
-.remote-channel,
 .mix-modes { grid-column: 1 / -1; }
 
 .mix-modes {
