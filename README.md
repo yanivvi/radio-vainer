@@ -13,13 +13,15 @@ The studio tab mixes the microphone with music playing on this computer. That mi
 
 ## The server
 
-The pages are static. The sound is [Liquidsoap](https://www.liquidsoap.info/) and [Icecast](https://icecast.org/). From `server/`:
+The pages are static. The sound is [Liquidsoap](https://www.liquidsoap.info/) and [Icecast](https://icecast.org/). Copy `server/.env.example` to `server/.env`. Set `SOURCE_PASSWORD` to letters, numbers, and hyphens. Set `SITE_ADDRESS` to this computer's address on the local network, the one other devices already use to reach it. A `.local` name works there when the phone can open it. From `server/`:
 
 ```
 docker compose up
 ```
 
-Open http://localhost:8080/ for the radio and http://localhost:8080/studio.html for the booth. The server password starts as `changeme`. Change it by copying `server/.env.example` to `server/.env` and setting `SOURCE_PASSWORD` to letters, numbers, and hyphens. The studio asks for that password and remembers it on this computer.
+Open http://localhost:8080/ for the radio and http://localhost:8080/studio.html for the booth. The studio microphone works on that address. The server password starts as `changeme`. The studio asks for it and remembers it on this computer.
+
+A phone on the same network opens `https://` plus `SITE_ADDRESS`. The studio's remote link and guest link use that address. Listeners can also open `http://` plus that name on port `8080` and press Listen. Before the phone microphone will work, the phone has to trust the station. Open `http://` plus that name, port `8080`, path `/station-ca.crt`. Install the profile, then enable full trust for Radio Vainer in Certificate Trust Settings.
 
 Liquidsoap takes the studio mix on a webcast socket and sends MP3 to Icecast. When the studio stops, the public stream stops. Listeners use the normal stream address `/stream/radio-vainer`.
 
@@ -75,7 +77,7 @@ The caller hears the station without their own microphone. Listeners hear the ca
 
 ## The remote
 
-The phone cannot capture the music. The laptop stays the booth. Open the studio, then open `remote.html` on the phone. It is the same address every time. Bookmark it.
+The phone cannot capture the music. The laptop stays the booth. Open the studio, then open the remote address it shows. That address stays the same. Bookmark it.
 
 The phone joins a room the radio page does not use, so a listener cannot move the faders. The studio joins that room when the studio page opens, so the phone connects on its own. Microphone, Speak, and Play on the phone use that phone's microphone and send it to the studio to mix. The phone can move the microphone, music, and guest levels, run Speak and Play, edit the message, and drop the caller. Going live, music capture, and Auto stay on the laptop. The listener count stays on the laptop.
 

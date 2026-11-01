@@ -1,10 +1,32 @@
-:80 {
+{
+	auto_https disable_redirects
+	pki {
+		ca local {
+			root_cn "Radio Vainer"
+		}
+	}
+}
+
+(station) {
 	handle /server/* {
 		respond 404
 	}
 
 	handle /.git* {
 		respond 404
+	}
+
+	handle /station.json {
+		header Content-Type application/json
+		header Cache-Control no-store
+		respond "{\"origin\":\"https://{$SITE_ADDRESS}\"}" 200
+	}
+
+	handle /station-ca.crt {
+		root * /data/caddy/pki/authorities/local
+		rewrite * /root.crt
+		header Content-Type application/x-x509-ca-cert
+		file_server
 	}
 
 	handle /harbor/* {
@@ -23,4 +45,13 @@
 		root * /srv
 		file_server
 	}
+}
+
+:80 {
+	import station
+}
+
+{$SITE_ADDRESS} {
+	tls internal
+	import station
 }
