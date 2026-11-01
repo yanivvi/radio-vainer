@@ -30,6 +30,10 @@
 	}
 
 	handle /harbor/* {
+		@public host {$PUBLIC_HOST}
+		handle @public {
+			respond 404
+		}
 		uri strip_prefix /harbor
 		reverse_proxy liquidsoap:8001
 	}
