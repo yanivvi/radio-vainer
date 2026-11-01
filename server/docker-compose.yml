@@ -23,6 +23,11 @@ services:
       ICECAST_HOSTNAME: localhost
       ICECAST_MAX_CLIENTS: 100
       ICECAST_MAX_SOURCES: 4
+    # 48000 bytes is about 2s at 192 kbps. 24000 is the 1s a phone needs to start.
+    command:
+      - /bin/sh
+      - -c
+      - xml-edit queue-size 48000 /etc/icecast.xml && xml-edit burst-size 24000 /etc/icecast.xml && exec icecast -c /etc/icecast.xml
 
   liquidsoap:
     image: savonet/liquidsoap:v2.4.6

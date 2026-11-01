@@ -40,7 +40,7 @@ export function openCast({ url, user, password, stream, mime, sampleRate, onClos
         recorder.onerror = () => {
           if (!closedByUs) notify?.()
         }
-        recorder.start(500)
+        recorder.start(100)
       } catch {
         fail(new Error('encode'))
         return
