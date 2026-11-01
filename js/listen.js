@@ -223,7 +223,6 @@ function askToListen() {
   armed = false
   listenBtn.textContent = 'Listen'
   publishSession('paused')
-  watchHearing(false)
   note.textContent = 'Press listen to hear the station.'
 }
 
