@@ -6,15 +6,9 @@ services:
     restart: unless-stopped
     ports:
       - "8080:80"
-      - "443:443"
-    environment:
-      SITE_ADDRESS: ${SITE_ADDRESS:?Set SITE_ADDRESS in server/.env to this computer .local name}
-      PUBLIC_HOST: ${PUBLIC_HOST:-public.invalid}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ..:/srv:ro
-      - caddy-data:/data
-      - caddy-config:/config
     depends_on:
       - icecast
       - liquidsoap
@@ -42,7 +36,3 @@ services:
       - 'sed "s/__PASSWORD__/$$SOURCE_PASSWORD/g" /radio.liq > /tmp/radio.liq && exec liquidsoap /tmp/radio.liq'
     depends_on:
       - icecast
-
-volumes:
-  caddy-data:
-  caddy-config:

@@ -886,11 +886,10 @@ function paintMeter(ctx, canvas, analyserNode, sample) {
   ctx.fillRect(0, height / 2 - 4, Math.max(0, width * level), 8)
 }
 
-async function createCallLink() {
+function createCallLink() {
   if (guestPeerId) releaseGuest(true)
-  await phoneOriginReady
   callCode = crypto.randomUUID().replaceAll('-', '')
-  const url = phonePage('guest.html')
+  const url = new URL('guest.html', location.href)
   url.searchParams.set('call', callCode)
   guestUrlInput.value = url.href
   guestShare.hidden = false
@@ -925,35 +924,8 @@ function copyLink(input, button) {
   }
 }
 
-let phoneOrigin = location.origin
-let phoneOriginReady = Promise.resolve()
-
-function rememberPhoneOrigin(value) {
-  try {
-    const url = new URL(value)
-    if (url.protocol !== 'https:' || url.username || url.password) return
-    phoneOrigin = url.origin
-  } catch {
-    // This page's address stays the link.
-  }
-}
-
-function phonePage(path) {
-  return new URL(path, `${phoneOrigin}/`)
-}
-
-async function loadPhoneOrigin() {
-  try {
-    const response = await fetch(new URL('station.json', location.href), { cache: 'no-store' })
-    if (response.ok) rememberPhoneOrigin((await response.json()).origin)
-  } catch {
-    // This page's address stays the link.
-  }
-  showDeckLink()
-}
-
 function showDeckLink() {
-  const url = phonePage('remote.html')
+  const url = new URL('remote.html', location.href)
   url.search = ''
   url.hash = ''
   remoteUrlInput.value = url.href
@@ -1335,5 +1307,5 @@ function release() {
   audioCtx?.close()
 }
 
-phoneOriginReady = loadPhoneOrigin()
+showDeckLink()
 joinDeck()
