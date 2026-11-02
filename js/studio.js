@@ -71,7 +71,6 @@ let heldDeviceMic = null
 let meterPulse = 0
 let cast = null
 let onAir = false
-let castRetries = 0
 let listenerPoll = 0
 let quietPolls = 0
 const PASSWORD_KEY = 'radio-vainer-password'
@@ -437,30 +436,9 @@ function beginCast(epoch) {
 
 function lostCast(epoch) {
   if (epoch !== broadcastEpoch || !onAir || starting) return
-  castRetries += 1
-  if (castRetries > 2) {
-    stopBroadcast('The station server dropped the show.')
-    return
-  }
-  setStatus('Reconnecting the show.')
-  const previous = cast
-  cast = null
-  previous?.stop()
-  const next = beginCast(epoch)
-  if (!next) {
-    stopBroadcast('Open the studio in Chrome or Edge to send the show.')
-    return
-  }
-  cast = next
-  next.ready.then(() => {
-    if (epoch !== broadcastEpoch) return
-    castRetries = 0
-    next.setTitle(hostLine())
-    setStatus('')
-  }).catch(() => {
-    if (epoch !== broadcastEpoch) return
-    lostCast(epoch)
-  })
+  // A new Go Live disconnects this socket. Reconnecting would take the mount
+  // back from the studio that just started.
+  stopBroadcast('The station dropped the show. Go live to start it again.')
 }
 
 async function startBroadcast() {
@@ -484,7 +462,6 @@ async function startBroadcast() {
       setStatus('Open the studio in Chrome or Edge to send the show.')
       return
     }
-    castRetries = 0
     quietPolls = 0
     cast = beginCast(epoch)
     try {
@@ -565,7 +542,6 @@ async function startBroadcast() {
 async function stopBroadcast(reason) {
   broadcastEpoch += 1
   onAir = false
-  castRetries = 0
   quietPolls = 0
   window.clearInterval(pulse)
   window.clearInterval(listenerPoll)
