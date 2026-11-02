@@ -1,5 +1,6 @@
 import { castMime, openCast } from './cast.js'
 import { mountStudioChat } from './chat.js'
+import { mountStudioRequests } from './requests.js'
 import { harborUrl, joinRoom, roomId, roomOptions, sourceUser } from './config.js'
 import { deckActionName, deckRoomId } from './deck.js'
 import { readMount } from './stream.js'
@@ -92,6 +93,7 @@ let quietSince = 0
 
 if (devicePlayer) devicePlayer.playsInline = true
 const studioChat = mountStudioChat()
+const studioRequests = mountStudioRequests()
 const micFade = createFade(micGainInput, () => micGain, 3)
 const musicFade = createFade(musicGainInput, () => musicGain)
 
@@ -525,6 +527,7 @@ async function startBroadcast() {
     room.onPeerLeave = (peerId) => {
       if (peerId === guestPeerId) releaseGuest(false)
       studioChat.peerLeft(peerId)
+      studioRequests.peerLeft(peerId)
       publish()
     }
     room.onPeerStream = (stream, peerId, metadata) => {
@@ -537,6 +540,7 @@ async function startBroadcast() {
       mixCaller(stream)
     }
     studioChat.attach(room)
+    studioRequests.attach(room)
 
     goLiveBtn.textContent = 'Stop broadcast'
     goLiveBtn.setAttribute('aria-pressed', 'true')
@@ -576,6 +580,7 @@ async function stopBroadcast(reason) {
     // The room may already be empty.
   }
   studioChat.detach()
+  studioRequests.detach()
   releaseGuest(false)
   room?.leave()
   room = null
@@ -1303,6 +1308,7 @@ function release() {
   displayStream?.getTracks().forEach((track) => track.stop())
   releaseGuest(false)
   studioChat.detach()
+  studioRequests.detach()
   room?.leave()
   audioCtx?.close()
 }

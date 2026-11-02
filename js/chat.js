@@ -4,12 +4,11 @@ import { cleanPicture, pictureElement, pictures, suggestPicture } from './pictur
 const MAX_LOG = 40
 const CHAT_HOLD_MS = 20000
 const STUDIO_NAME = 'Studio'
-const REACTIONS = ['♥', '👍', '😂']
 
 // Listeners join passively, so they only connect to the studio.
 // The studio relays every message.
 
-export function mountListenerChat({ room, getHostId, claimHost }) {
+export function mountListenerChat({ room, getHostId, claimHost, onName }) {
   const gate = document.querySelector('#chat-gate')
   const live = document.querySelector('#chat-live')
   const nameInput = document.querySelector('#chat-name')
@@ -30,7 +29,6 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
   const messages = []
   const seen = new Set()
   const dropped = new Set()
-  const mine = new Map()
   let name = ''
   let picture = suggestPicture()
   let started = false
@@ -79,6 +77,7 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
     live.hidden = false
     you.textContent = name
     youPicture.replaceChildren(pictureElement(picture))
+    onName?.(name)
     setNote(getHostId() ? '' : 'Waiting for the studio.')
     paintAll()
     sendJoin()
@@ -94,7 +93,7 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
       setNote('The studio is not here yet.')
       return
     }
-    const message = { id: makeId(), name, text, admin: false, picture, at: Date.now(), reactions: {} }
+    const message = { id: makeId(), name, text, admin: false, picture, at: Date.now() }
     addMessage(message)
     action.send({ kind: 'say', id: message.id, name, text, picture, at: message.at }).catch(() => {
       setNote('Could not send. Try again.')
@@ -106,6 +105,7 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
     if (getHostId()) action.send({ kind: 'leave' }).catch(() => {})
     started = false
     announced = false
+    onName?.('')
     window.clearTimeout(holdTimer)
     holdTimer = 0
     clearMessages()
@@ -125,10 +125,6 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
     }
     if (data.kind === 'said') {
       addMessage(data)
-      return
-    }
-    if (data.kind === 'reacted') {
-      applyReactions(cleanId(data.id), data.reactions)
       return
     }
     if (data.kind === 'people' && Array.isArray(data.people)) {
@@ -160,7 +156,6 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
   function wipe() {
     holdTimer = 0
     dropped.clear()
-    mine.clear()
     clearMessages()
     renderPeopleList(peopleEl, [])
   }
@@ -171,26 +166,6 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
     action.send({ kind: 'join', name, picture }).catch(() => {
       announced = false
     })
-  }
-
-  function listenerHooks() {
-    return {
-      mine,
-      onReact(id, emoji) {
-        if (!started) return
-        if (!getHostId()) {
-          setNote('The studio is not here yet.')
-          return
-        }
-        if (!REACTIONS.includes(emoji) || !seen.has(id)) return
-        if (mine.get(id) === emoji) mine.delete(id)
-        else mine.set(id, emoji)
-        refresh(messages.find((item) => item.id === id))
-        action.send({ kind: 'react', id, emoji }).catch(() => {
-          setNote('Could not send. Try again.')
-        })
-      }
-    }
   }
 
   function mergeLog(incoming) {
@@ -222,14 +197,6 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
     if (started) paint(message)
   }
 
-  function applyReactions(id, counts) {
-    if (!id) return
-    const message = messages.find((item) => item.id === id)
-    if (!message) return
-    message.reactions = cleanReactions(counts)
-    if (started) refresh(message)
-  }
-
   function paintAll() {
     log.replaceChildren()
     messages.forEach(paint)
@@ -237,23 +204,14 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
   }
 
   function paint(message) {
-    log.append(renderMessage(message, listenerHooks()))
+    log.append(renderMessage(message))
     syncEmpty()
     scroll.scrollTop = scroll.scrollHeight
-  }
-
-  function refresh(message) {
-    if (!message) return
-    const next = renderMessage(message, listenerHooks())
-    const existing = log.querySelector(`[data-id="${CSS.escape(message.id)}"]`)
-    if (existing) existing.replaceWith(next)
-    else paint(message)
   }
 
   function forget(id) {
     if (!id) return
     dropped.add(id)
-    mine.delete(id)
     if (!seen.has(id)) return
     seen.delete(id)
     const index = messages.findIndex((message) => message.id === id)
@@ -266,7 +224,6 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
     while (messages.length > MAX_LOG) {
       const old = messages.shift()
       seen.delete(old.id)
-      mine.delete(old.id)
       log.querySelector(`[data-id="${CSS.escape(old.id)}"]`)?.remove()
     }
   }
@@ -274,7 +231,6 @@ export function mountListenerChat({ room, getHostId, claimHost }) {
   function clearMessages() {
     messages.length = 0
     seen.clear()
-    mine.clear()
     log.replaceChildren()
     syncEmpty()
   }
@@ -301,7 +257,6 @@ export function mountStudioChat() {
   const messages = []
   const seen = new Set()
   const people = new Map()
-  const reactionByMessage = new Map()
   let action = null
 
   form.addEventListener('submit', (event) => {
@@ -315,8 +270,7 @@ export function mountStudioChat() {
       text,
       admin: true,
       picture: 'studio',
-      at: Date.now(),
-      reactions: {}
+      at: Date.now()
     }
     remember(message)
     relay(message)
@@ -339,13 +293,11 @@ export function mountStudioChat() {
         if (data.kind === 'leave') {
           const person = people.get(peerId)
           people.delete(peerId)
-          dropPeerVotes(peerId)
           announcePeople()
           if (person) addNotice(`${person.name} left`)
           return
         }
         if (data.kind === 'say') acceptSay(peerId, data)
-        else if (data.kind === 'react') toggleReaction(peerId, cleanId(data.id), data.emoji)
       }
     },
     detach() {
@@ -353,7 +305,6 @@ export function mountStudioChat() {
       messages.length = 0
       seen.clear()
       people.clear()
-      reactionByMessage.clear()
       log.replaceChildren()
       peopleEl.replaceChildren()
       textInput.value = ''
@@ -365,7 +316,6 @@ export function mountStudioChat() {
       const person = people.get(peerId)
       if (!person) return
       people.delete(peerId)
-      dropPeerVotes(peerId)
       announcePeople()
       addNotice(`${person.name} left`)
     }
@@ -373,19 +323,8 @@ export function mountStudioChat() {
 
   function studioHooks() {
     return {
-      mine: studioVotes(),
-      onReact(id, emoji) { toggleReaction('studio', id, emoji) },
       onDrop(id) { removeMessage(id) }
     }
-  }
-
-  function studioVotes() {
-    const mine = new Map()
-    for (const [id, votes] of reactionByMessage) {
-      const emoji = votes.get('studio')
-      if (emoji) mine.set(id, emoji)
-    }
-    return mine
   }
 
   function welcome(peerId, rawName, rawPicture) {
@@ -401,17 +340,6 @@ export function mountStudioChat() {
     return true
   }
 
-  function dropPeerVotes(peerId) {
-    for (const [id, votes] of reactionByMessage) {
-      if (!votes.delete(peerId)) continue
-      const message = messages.find((item) => item.id === id)
-      if (!message) continue
-      message.reactions = countVotes(votes)
-      refresh(message)
-      action?.send({ kind: 'reacted', id, reactions: message.reactions }).catch(() => {})
-    }
-  }
-
   function acceptSay(peerId, data) {
     const name = cleanName(data.name)
     const text = cleanText(data.text)
@@ -421,32 +349,14 @@ export function mountStudioChat() {
     const picture = cleanPicture(data.picture)
     if (!welcome(peerId, name, picture)) return
     if (seen.has(id)) return
-    const message = { id, name, text, admin: false, picture, at: cleanAt(data.at), reactions: {} }
+    const message = { id, name, text, admin: false, picture, at: cleanAt(data.at) }
     remember(message)
     relay(message)
     if (isNew) sendLog(peerId)
   }
 
-  function toggleReaction(peerId, id, emoji) {
-    if (!action || !REACTIONS.includes(emoji) || !seen.has(id)) return
-    let votes = reactionByMessage.get(id)
-    if (!votes) {
-      votes = new Map()
-      reactionByMessage.set(id, votes)
-    }
-    if (votes.get(peerId) === emoji) votes.delete(peerId)
-    else votes.set(peerId, emoji)
-    const counts = countVotes(votes)
-    const message = messages.find((item) => item.id === id)
-    if (!message) return
-    message.reactions = counts
-    refresh(message)
-    action.send({ kind: 'reacted', id, reactions: counts }).catch(() => {})
-  }
-
   function removeMessage(id) {
     if (!action || !cleanId(id)) return
-    reactionByMessage.delete(id)
     const index = messages.findIndex((message) => message.id === id)
     if (index !== -1) {
       messages.splice(index, 1)
@@ -463,7 +373,6 @@ export function mountStudioChat() {
     while (messages.length > MAX_LOG) {
       const old = messages.shift()
       seen.delete(old.id)
-      reactionByMessage.delete(old.id)
       log.querySelector(`[data-id="${CSS.escape(old.id)}"]`)?.remove()
     }
     refresh(message)
@@ -497,16 +406,15 @@ export function mountStudioChat() {
       text: message.text,
       admin: message.admin,
       picture: message.picture,
-      at: message.at,
-      reactions: message.reactions || {}
+      at: message.at
     }).catch(() => {})
   }
 
   function sendLog(peerId) {
     action?.send({
       kind: 'log',
-      messages: messages.map(({ id, name, text, admin, picture, at, reactions }) => (
-        { id, name, text, admin, picture, at, reactions: reactions || {} }
+      messages: messages.map(({ id, name, text, admin, picture, at }) => (
+        { id, name, text, admin, picture, at }
       ))
     }, { target: peerId }).catch(() => {})
   }
@@ -548,75 +456,33 @@ function renderPeopleList(container, list) {
 
 function renderMessage(message, hooks) {
   const item = document.createElement('li')
-  item.className = message.admin ? 'chat-msg admin' : 'chat-msg'
+  item.className = message.admin ? 'chat-line admin' : 'chat-line'
   item.dataset.id = message.id
-
-  const face = document.createElement('span')
-  face.className = 'chat-picture'
-  face.append(pictureElement(message.admin ? 'studio' : message.picture))
-
-  const bubble = document.createElement('div')
-  bubble.className = 'chat-bubble'
-
-  const who = document.createElement('span')
-  who.className = 'chat-name'
-  who.append(document.createTextNode(message.admin ? STUDIO_NAME : message.name))
-  if (message.admin) {
-    const badge = document.createElement('span')
-    badge.className = 'chat-badge'
-    badge.textContent = 'Admin'
-    who.append(badge)
-  }
 
   const time = document.createElement('time')
   time.className = 'chat-time'
   time.dateTime = new Date(message.at).toISOString()
   time.textContent = formatTime(message.at)
 
-  const head = document.createElement('span')
-  head.className = 'chat-head'
-  head.append(who, time)
+  const who = document.createElement('span')
+  who.className = 'chat-name'
+  who.textContent = message.admin ? STUDIO_NAME : message.name
+  who.title = who.textContent
 
-  const body = document.createElement('p')
+  const body = document.createElement('span')
   body.className = 'chat-text'
   body.textContent = message.text
 
-  const reacts = document.createElement('div')
-  reacts.className = 'chat-reacts'
-  const counts = message.reactions || {}
-  const selected = hooks?.mine?.get(message.id) || ''
-  for (const emoji of REACTIONS) {
-    const button = document.createElement('button')
-    button.type = 'button'
-    button.className = 'chat-react'
-    const count = counts[emoji] || 0
-    button.textContent = count > 0 ? `${emoji} ${count}` : emoji
-    button.setAttribute('aria-label', `React ${emoji}`)
-    button.setAttribute('aria-pressed', selected === emoji ? 'true' : 'false')
-    button.addEventListener('click', () => { hooks?.onReact?.(message.id, emoji) })
-    reacts.append(button)
-  }
-
-  bubble.append(head, body, reacts)
+  item.append(time, who, body)
   if (hooks?.onDrop) {
     const remove = document.createElement('button')
     remove.type = 'button'
     remove.className = 'text-btn chat-remove'
     remove.textContent = 'Remove'
     remove.addEventListener('click', () => { hooks.onDrop(message.id) })
-    bubble.append(remove)
+    item.append(remove)
   }
-  item.append(face, bubble)
   return item
-}
-
-function countVotes(votes) {
-  const counts = {}
-  for (const emoji of votes.values()) {
-    if (!REACTIONS.includes(emoji)) continue
-    counts[emoji] = (counts[emoji] || 0) + 1
-  }
-  return counts
 }
 
 function normalize(raw) {
@@ -632,19 +498,8 @@ function normalize(raw) {
     text,
     admin,
     picture: admin ? 'studio' : cleanPicture(raw.picture),
-    at: cleanAt(raw.at),
-    reactions: cleanReactions(raw.reactions)
+    at: cleanAt(raw.at)
   }
-}
-
-function cleanReactions(value) {
-  const counts = {}
-  if (!value || typeof value !== 'object') return counts
-  for (const emoji of REACTIONS) {
-    const n = Math.round(Number(value[emoji]))
-    if (n > 0) counts[emoji] = Math.min(99, n)
-  }
-  return counts
 }
 
 function cleanAt(value) {

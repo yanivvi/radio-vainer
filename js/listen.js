@@ -1,4 +1,5 @@
 import { mountListenerChat } from './chat.js'
+import { mountListenerRequests } from './requests.js'
 import { joinRoom, roomId, roomOptions, streamPath } from './config.js'
 import { readMount } from './stream.js'
 
@@ -34,12 +35,21 @@ if ('mediaSession' in navigator) {
 
 const room = joinRoom(roomOptions({ passive: true }), roomId)
 
-const chat = mountListenerChat({
+const requests = mountListenerRequests({
   room,
   getHostId: () => hostId,
   claimHost(peerId) {
     return hostId === peerId && Date.now() - lastHostBeat < HOST_STALE_MS
   }
+})
+
+const chat = mountListenerChat({
+  room,
+  getHostId: () => hostId,
+  claimHost(peerId) {
+    return hostId === peerId && Date.now() - lastHostBeat < HOST_STALE_MS
+  },
+  onName(name) { requests.setName(name) }
 })
 
 const status = room.makeAction('status')
@@ -53,6 +63,7 @@ status.onMessage = (data, { peerId }) => {
   if (!acceptHost(peerId, true)) return
   if (data.message) showMessage(data.message)
   chat.hostHere()
+  requests.hostHere()
 }
 
 room.onPeerLeave = (peerId) => {
@@ -270,6 +281,7 @@ function leaveChat(immediate) {
   hostId = null
   lastHostBeat = 0
   chat.hostLeft(immediate)
+  requests.hostLeft(immediate)
 }
 
 function draw() {

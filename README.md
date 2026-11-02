@@ -83,14 +83,16 @@ Keep the studio tab open. While that tab is open, or the station is live, the pa
 
 ## The room
 
-Listeners pick a name and a picture, then talk. The name Studio is reserved. The studio relays every message, and a person who joins receives the recent log, up to 40 messages. Everyone in the chat can see who else is there. A heart, a thumbs-up, or a laugh can be added to a message. The studio can remove a message. Join and leave lines show in the studio. Messages stay once they are sent. Chat is open while the On Air light is on. If the connection blips, the log stays until the studio has been gone for a while.
+Listeners pick a name and a picture, then talk. The name Studio is reserved. The studio relays every message, and a person who joins receives the recent log, up to 40 messages. Everyone in the chat can see who else is there. Each message is one line: the time, the name, and the text. The studio can remove a message. Join and leave lines show in the studio. Messages stay once they are sent. Chat is open while the On Air light is on. If the connection blips, the log stays until the studio has been gone for a while.
+
+Song requests sit outside the chat. Anyone can ask for a song. Anyone else can upvote a request, and a person cannot upvote their own. The studio keeps the list, up to 40 requests, and listeners see it while the On Air light is on.
 
 ## The pages
 
 | Page | On the desk |
 | --- | --- |
-| `index.html` | The radio. The mark, Listen, the host's line, and chat. |
-| `studio.html` | The mix, the broadcast, the guest link, the remote link, and chat. |
+| `index.html` | The radio. The mark, Listen, the host's line, requests, and chat. |
+| `studio.html` | The mix, the broadcast, the guest link, the remote link, requests, and chat. |
 | `guest.html` | One caller, opened from the studio link. The full booth picture. |
 | `remote.html` | The phone booth. Same address every time. Its microphone, the faders, and the message. |
 | `logo.jpg` | The host at the desk. Shown large on the caller page, small beside the titles. |
@@ -104,5 +106,6 @@ Listeners pick a name and a picture, then talk. The name Studio is reserved. The
 | `js/guest.js` | Caller playback and microphone. |
 | `js/remote.js` | Phone microphone and remote commands. The studio mixes. |
 | `js/chat.js` | Chat for the radio page and the studio. |
+| `js/requests.js` | Song requests for the radio page and the studio. |
 
 `extension/` was built to fill a Now Playing field from the tab that is playing audio. The studio no longer has that field, so the extension does nothing.

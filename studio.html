@@ -100,6 +100,26 @@
     <a class="quiet in-booth" href="./">Open the radio</a>
     </div>
 
+    <div class="side">
+    <section class="requests" aria-labelledby="studio-requests-label">
+      <h2 id="studio-requests-label">Requests</h2>
+      <p class="hint">What people asked to hear.</p>
+      <p id="studio-requests-note" class="note" role="status">Go live to take requests.</p>
+      <div id="studio-requests-live" hidden>
+        <form id="studio-requests-form" class="request-form" autocomplete="off">
+          <label class="request-field request-song">
+            <span>Song</span>
+            <input id="studio-request-song" type="text" maxlength="80" placeholder="Artist — Song" required>
+          </label>
+          <button class="chat-send" type="submit">Request</button>
+        </form>
+        <div id="studio-requests-scroll" class="request-scroll">
+          <p id="studio-requests-empty" class="chat-empty">No requests yet.</p>
+          <ol id="studio-requests-list" class="request-list"></ol>
+        </div>
+      </div>
+    </section>
+
     <section class="chat" aria-labelledby="studio-chat-label">
       <h2 id="studio-chat-label">Chat</h2>
       <p id="studio-chat-note" class="note" role="status">Go live to open the chat.</p>
@@ -119,6 +139,7 @@
         </form>
       </div>
     </section>
+    </div>
     </div>
   </main>
   <script type="module" src="js/studio.js"></script>
