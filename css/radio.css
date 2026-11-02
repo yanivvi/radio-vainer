@@ -362,7 +362,9 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .channel h2,
-.chat h2 {
+.chat h2,
+.requests h2,
+.request-field span {
   margin: 0;
   font-family: Fredoka, Nunito, sans-serif;
   font-size: 20px;
@@ -660,13 +662,6 @@ input[type="range"]::-moz-range-thumb {
   border-top: 2px solid #f3d7b8;
 }
 
-.requests h2 {
-  margin: 0;
-  font-family: Fredoka, Nunito, sans-serif;
-  font-size: 20px;
-  font-weight: 600;
-}
-
 .request-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -679,11 +674,6 @@ input[type="range"]::-moz-range-thumb {
   display: grid;
   gap: 6px;
   min-width: 0;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .request-song { min-width: 0; }
