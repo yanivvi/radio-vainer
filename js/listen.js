@@ -1,6 +1,7 @@
 import { mountListenerChat } from './chat.js'
 import { mountListenerRequests } from './requests.js'
 import { joinRoom, roomId, roomOptions, streamPath } from './config.js'
+import { suggestName } from './names.js'
 import { readMount } from './stream.js'
 
 const HOST_STALE_MS = 12000
@@ -35,12 +36,17 @@ if ('mediaSession' in navigator) {
 
 const room = joinRoom(roomOptions({ passive: true }), roomId)
 
+const nameInput = document.querySelector('#listener-name')
+nameInput.value = suggestName()
+const listenerName = () => nameInput.value
+
 const requests = mountListenerRequests({
   room,
   getHostId: () => hostId,
   claimHost(peerId) {
     return hostId === peerId && Date.now() - lastHostBeat < HOST_STALE_MS
-  }
+  },
+  getName: listenerName
 })
 
 const chat = mountListenerChat({
@@ -49,7 +55,14 @@ const chat = mountListenerChat({
   claimHost(peerId) {
     return hostId === peerId && Date.now() - lastHostBeat < HOST_STALE_MS
   },
-  onName(name) { requests.setName(name) }
+  getName: listenerName
+})
+
+nameInput.addEventListener('input', () => { chat.useName(nameInput.value) })
+document.querySelector('#listener-suggest').addEventListener('click', () => {
+  nameInput.value = suggestName()
+  nameInput.focus()
+  chat.useName(nameInput.value)
 })
 
 const status = room.makeAction('status')

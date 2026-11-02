@@ -1,4 +1,3 @@
-import { suggestName } from './names.js'
 import { cleanPicture, pictureElement, pictures, suggestPicture } from './pictures.js'
 
 const MAX_LOG = 40
@@ -8,12 +7,11 @@ const STUDIO_NAME = 'Studio'
 // Listeners join passively, so they only connect to the studio.
 // The studio relays every message.
 
-export function mountListenerChat({ room, getHostId, claimHost, onName }) {
+export function mountListenerChat({ room, getHostId, claimHost, getName }) {
   const gate = document.querySelector('#chat-gate')
   const live = document.querySelector('#chat-live')
-  const nameInput = document.querySelector('#chat-name')
+  const nameInput = document.querySelector('#listener-name')
   const pictureRow = document.querySelector('#chat-pictures')
-  const suggestBtn = document.querySelector('#chat-suggest')
   const you = document.querySelector('#chat-you')
   const youPicture = document.querySelector('#chat-you-picture')
   const empty = document.querySelector('#chat-empty')
@@ -35,7 +33,6 @@ export function mountListenerChat({ room, getHostId, claimHost, onName }) {
   let announced = false
   let holdTimer = 0
 
-  nameInput.value = suggestName()
   const pictureChoices = new Map()
   for (const item of pictures) {
     const button = document.createElement('button')
@@ -54,16 +51,11 @@ export function mountListenerChat({ room, getHostId, claimHost, onName }) {
     pictureRow.append(button)
   }
 
-  suggestBtn.addEventListener('click', () => {
-    nameInput.value = suggestName()
-    nameInput.focus()
-  })
-
   gate.addEventListener('submit', (event) => {
     event.preventDefault()
-    const chosen = cleanName(nameInput.value)
+    const chosen = cleanName(getName())
     if (!chosen) {
-      setNote(nameInput.value.trim().toLowerCase() === 'studio'
+      setNote(String(getName() ?? '').trim().toLowerCase() === 'studio'
         ? 'That name is reserved for the studio.'
         : 'Choose a name.')
       nameInput.focus()
@@ -77,7 +69,6 @@ export function mountListenerChat({ room, getHostId, claimHost, onName }) {
     live.hidden = false
     you.textContent = name
     youPicture.replaceChildren(pictureElement(picture))
-    onName?.(name)
     setNote(getHostId() ? '' : 'Waiting for the studio.')
     paintAll()
     sendJoin()
@@ -93,6 +84,14 @@ export function mountListenerChat({ room, getHostId, claimHost, onName }) {
       setNote('The studio is not here yet.')
       return
     }
+    const chosen = cleanName(getName())
+    if (!chosen) {
+      setNote('Choose a name.')
+      nameInput.focus()
+      return
+    }
+    name = chosen
+    you.textContent = name
     const message = { id: makeId(), name, text, admin: false, picture, at: Date.now() }
     addMessage(message)
     action.send({ kind: 'say', id: message.id, name, text, picture, at: message.at }).catch(() => {
@@ -105,7 +104,6 @@ export function mountListenerChat({ room, getHostId, claimHost, onName }) {
     if (getHostId()) action.send({ kind: 'leave' }).catch(() => {})
     started = false
     announced = false
-    onName?.('')
     window.clearTimeout(holdTimer)
     holdTimer = 0
     clearMessages()
@@ -135,6 +133,14 @@ export function mountListenerChat({ room, getHostId, claimHost, onName }) {
   }
 
   return {
+    useName(raw) {
+      const chosen = cleanName(raw)
+      if (!started || !chosen || chosen === name) return
+      name = chosen
+      you.textContent = name
+      announced = false
+      sendJoin()
+    },
     hostHere() {
       window.clearTimeout(holdTimer)
       holdTimer = 0

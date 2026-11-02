@@ -31,14 +31,18 @@
 
     <p id="note" class="note" role="status"></p>
 
+    <div class="name-pick">
+      <label class="request-field" for="listener-name">
+        <span>Name</span>
+        <input id="listener-name" type="text" maxlength="24" autocomplete="nickname" spellcheck="false">
+      </label>
+      <button id="listener-suggest" class="text-btn" type="button">Suggest a name</button>
+    </div>
+
     <section class="requests" aria-labelledby="requests-label">
       <h2 id="requests-label">Requests</h2>
       <p class="hint">Ask for a song. Upvote a request someone else made.</p>
       <form id="request-form" class="request-form" autocomplete="off">
-        <label class="request-field request-name">
-          <span>Name</span>
-          <input id="request-name" type="text" maxlength="24" autocomplete="nickname" spellcheck="false">
-        </label>
         <label class="request-field request-song">
           <span>Song</span>
           <input id="request-song" type="text" maxlength="80" placeholder="Artist — Song" required>
@@ -55,18 +59,13 @@
     <section class="chat" aria-labelledby="chat-label">
       <h2 id="chat-label">Chat</h2>
       <form id="chat-gate" class="chat-gate" autocomplete="off">
-        <p class="hint">Pick a name and a picture. The studio runs the chat.</p>
-        <label class="title-field chat-field">
-          <span>Name</span>
-          <input id="chat-name" type="text" maxlength="24" autocomplete="nickname" spellcheck="false">
-        </label>
+        <p class="hint">Pick a picture. The studio runs the chat.</p>
         <fieldset class="picture-field">
           <legend>Picture</legend>
           <div id="chat-pictures" class="picture-row"></div>
         </fieldset>
         <div class="chat-actions">
           <button class="chat-send" type="submit">Start chat</button>
-          <button id="chat-suggest" class="text-btn" type="button">Suggest a name</button>
         </div>
       </form>
       <div id="chat-live" hidden>

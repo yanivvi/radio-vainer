@@ -686,9 +686,19 @@ input[type="range"]::-moz-range-thumb {
   text-transform: uppercase;
 }
 
-.request-name { grid-column: 1 / -1; }
-
 .request-song { min-width: 0; }
+
+.name-pick {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px 14px;
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 2px solid #f3d7b8;
+}
+
+.name-pick .text-btn { margin-bottom: 12px; }
 
 .request-field input { width: 100%; min-width: 0; }
 

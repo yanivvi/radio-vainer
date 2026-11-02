@@ -83,7 +83,7 @@ Keep the studio tab open. While that tab is open, or the station is live, the pa
 
 ## The room
 
-Listeners pick a name and a picture, then talk. The name Studio is reserved. The studio relays every message, and a person who joins receives the recent log, up to 40 messages. Everyone in the chat can see who else is there. Each message is one line: the time, the name, and the text. The studio can remove a message. Join and leave lines show in the studio. Messages stay once they are sent. Chat is open while the On Air light is on. If the connection blips, the log stays until the studio has been gone for a while.
+Listeners pick one name. Requests and chat both use it. They also pick a picture, then talk. The name Studio is reserved. The studio relays every message, and a person who joins receives the recent log, up to 40 messages. Everyone in the chat can see who else is there. Each message is one line: the time, the name, and the text. The studio can remove a message. Join and leave lines show in the studio. Messages stay once they are sent. Chat is open while the On Air light is on. If the connection blips, the log stays until the studio has been gone for a while.
 
 Song requests sit outside the chat. Anyone can ask for a song. Anyone else can upvote a request, and a person cannot upvote their own. The studio keeps the list, up to 40 requests, and listeners see it while the On Air light is on.
 

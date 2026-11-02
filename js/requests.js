@@ -1,5 +1,3 @@
-import { suggestName } from './names.js'
-
 const MAX_REQUESTS = 40
 const REQUEST_HOLD_MS = 20000
 const STUDIO_NAME = 'Studio'
@@ -7,9 +5,9 @@ const STUDIO_NAME = 'Studio'
 // The studio keeps the list. Listeners ask for songs and upvote
 // requests that someone else made.
 
-export function mountListenerRequests({ room, getHostId, claimHost }) {
+export function mountListenerRequests({ room, getHostId, claimHost, getName }) {
   const form = document.querySelector('#request-form')
-  const nameInput = document.querySelector('#request-name')
+  const nameInput = document.querySelector('#listener-name')
   const songInput = document.querySelector('#request-song')
   const note = document.querySelector('#request-note')
   const empty = document.querySelector('#request-empty')
@@ -20,17 +18,14 @@ export function mountListenerRequests({ room, getHostId, claimHost }) {
   let mine = new Set()
   let asked = new Set()
   const pending = new Set()
-  let chatter = ''
   let announced = false
   let seenHost = false
   let holdTimer = 0
 
-  nameInput.value = suggestName()
-
   form.addEventListener('submit', (event) => {
     event.preventDefault()
     const title = cleanTitle(songInput.value)
-    const name = chatter || cleanRequestName(nameInput.value, false)
+    const name = cleanRequestName(getName(), false)
     if (!name) {
       setNote('Choose a name.')
       nameInput.focus()
@@ -85,15 +80,6 @@ export function mountListenerRequests({ room, getHostId, claimHost }) {
       if (immediate) wipe()
       else holdTimer = window.setTimeout(wipe, REQUEST_HOLD_MS)
     },
-    setName(name) {
-      chatter = cleanRequestName(name, false)
-      if (chatter) {
-        nameInput.value = chatter
-        nameInput.disabled = true
-      } else {
-        nameInput.disabled = false
-      }
-    }
   }
 
   function sendHello() {
