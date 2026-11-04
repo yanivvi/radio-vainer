@@ -13,13 +13,19 @@ The studio tab mixes the microphone with music playing on this computer. That mi
 
 ## The server
 
-The pages are static. The sound is [Liquidsoap](https://www.liquidsoap.info/) and [Icecast](https://icecast.org/). From `server/`:
+The pages are static. The sound is [Liquidsoap](https://www.liquidsoap.info/) and [Icecast](https://icecast.org/). The station that is on the air runs in Docker Compose from `server/`:
 
 ```
 docker compose up
 ```
 
-Open http://localhost:8080/ for the radio and http://localhost:8080/studio.html for the booth. The server password starts as `changeme`. Change it by copying `server/.env.example` to `server/.env` and setting `SOURCE_PASSWORD` to letters, numbers, and hyphens. The studio asks for that password and remembers it on this computer.
+Caddy, Icecast, and Liquidsoap come up together. Caddy is published on port 8080 of this Mac. On this computer, open http://localhost:8080/ for the radio and http://localhost:8080/studio.html for the booth.
+
+The public address is [https://shrimps.tail553127.ts.net/](https://shrimps.tail553127.ts.net/). The booth is [https://shrimps.tail553127.ts.net/studio.html](https://shrimps.tail553127.ts.net/studio.html). This Mac is the Tailscale machine `shrimps`. Tailscale Funnel serves that name with HTTPS and sends the traffic to Caddy on port 8080. Tailscale has to be running here for the name to answer. A phone opens the HTTPS address in a normal browser. The phone does not join the tailnet.
+
+The server password starts as `changeme`. Change it by copying `server/.env.example` to `server/.env` and setting `SOURCE_PASSWORD` to letters, numbers, and hyphens. The studio asks for that password and remembers it on this computer. The studio page is on the public internet, so change that password before leaving the booth up.
+
+`server/.local/` is the same station without Docker: Icecast, Liquidsoap, and Caddy installed on the Mac, bound to this computer. The password in those files is written out as `changeme`. If `SOURCE_PASSWORD` changes, those files change with it. Logs and Caddy's runtime data under `server/.local/` stay off git.
 
 Liquidsoap takes the studio mix on a webcast socket and sends MP3 to Icecast. When the studio stops, the public stream stops. Listeners use the normal stream address `/stream/radio-vainer`.
 
@@ -43,7 +49,7 @@ Keep a single studio tab live.
 
 Use Chrome or Edge on the computer that plays the music. The remote microphone works in Chrome or Safari on the phone.
 
-1. Start the station server, then open the studio on that server.
+1. Start the station server, then open the studio at https://shrimps.tail553127.ts.net/studio.html.
 2. Enter the station password.
 3. Turn on the microphone.
 4. Capture music. Choose **Entire Screen** and turn on **Share system audio**. If the music is a browser tab, share that tab and its audio instead.
@@ -51,7 +57,7 @@ Use Chrome or Edge on the computer that plays the music. The remote microphone w
 6. Go live. The badge turns from Off air to Live.
 7. Leave the studio tab open and the computer awake. While the tab is visible, the page asks the screen to stay on.
 
-Listeners open the radio page and press Listen. Sound starts only after that press. The page follows the Icecast stream, and lets go when the studio stops. The count of people on that stream is on the studio.
+Listeners open https://shrimps.tail553127.ts.net/ and press Listen. Sound starts only after that press. The page follows the Icecast stream, and lets go when the studio stops. The count of people on that stream is on the studio.
 
 The **Message** line is the host's line on the radio page, and the lock-screen title. The studio sends it with the stream while live.
 
@@ -75,7 +81,7 @@ The caller hears the station without their own microphone. Listeners hear the ca
 
 ## The remote
 
-The phone cannot capture the music. The laptop stays the booth. Open the studio, then open `remote.html` on the phone. It is the same address every time. Bookmark it.
+The phone cannot capture the music. The laptop stays the booth. Open the studio, then open https://shrimps.tail553127.ts.net/remote.html on the phone. It is the same address every time. Bookmark it.
 
 The phone joins a room the radio page does not use, so a listener cannot move the faders. The studio joins that room when the studio page opens, so the phone connects on its own. Microphone, Speak, and Play on the phone use that phone's microphone and send it to the studio to mix. The phone can move the microphone, music, and guest levels, run Speak and Play, edit the message, and drop the caller. Going live, music capture, and Auto stay on the laptop. The listener count stays on the laptop.
 
@@ -102,7 +108,8 @@ Song requests sit outside the chat. Anyone can ask for a song. Anyone else can u
 | `js/deck.js` | The remote's room id. The studio joins it when the studio page opens. |
 | `js/studio.js` | Mix, fades, broadcast, headphones, the caller, and the remote. |
 | `js/listen.js` | Listener playback of the Icecast stream. |
-| `server/` | Liquidsoap, Icecast, and the page server. |
+| `server/` | Docker Compose: Liquidsoap, Icecast, and the page server. |
+| `server/.local/` | The same three programs installed on this Mac, without Docker. |
 | `js/guest.js` | Caller playback and microphone. |
 | `js/remote.js` | Phone microphone and remote commands. The studio mixes. |
 | `js/chat.js` | Chat for the radio page and the studio. |
